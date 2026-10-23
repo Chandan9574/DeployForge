@@ -1,0 +1,22 @@
+{
+  "name": "deployforge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted preview deployments for Git branches",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "check": "find src -name '*.js' -print0 | xargs -0 -n1 node --check"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dockerode": "^5.0.1",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.19.2",
+    "morgan": "^1.10.0",
+    "zod": "^3.24.4"
+  }
+}
