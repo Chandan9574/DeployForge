@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DeployForge - Project Explanation</title>
+<style>
+@page{size:A4;margin:17mm 16mm}body{font-family:Arial,Helvetica,sans-serif;color:#243b53;font-size:11pt;line-height:1.5}h1,h2,h3{color:#102a43;page-break-after:avoid}h1{font-size:29pt;margin:0 0 8px}h2{font-size:18pt;border-bottom:2px solid #1769aa;padding-bottom:4px;margin:23px 0 10px}h3{font-size:13pt;color:#1769aa;margin:14px 0 5px}p{margin:6px 0 9px}li{margin:4px 0}table{border-collapse:collapse;width:100%;margin:8px 0 14px;page-break-inside:avoid}th{background:#102a43;color:#fff;text-align:left}th,td{border:1px solid #d9e2ec;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}pre{background:#102a43;color:#f5f7fa;padding:11px;border-radius:5px;font:9pt/1.45 "Courier New",monospace;white-space:pre-wrap;page-break-inside:avoid}.cover{min-height:245mm;display:flex;flex-direction:column;justify-content:center;page-break-after:always}.eyebrow{color:#0f766e;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase}.tagline{font-size:16pt;color:#1769aa}.callout{background:#f0f6fc;border-left:5px solid #1769aa;padding:10px 13px;margin:10px 0 14px}.quote{background:#ecfdf5;border-left:5px solid #0f766e;padding:11px 14px;font-weight:bold}.small{color:#627d98;font-size:9pt}
+</style>
+</head>
+<body>
+<section class="cover">
+<div class="eyebrow">Hackyard IIT Guwahati · Project Explanation</div>
+<h1>DeployForge</h1>
+<p class="tagline">Instant preview environments for every Git branch.</p>
+<p>DeployForge is a self-hosted developer platform that automatically converts a Git branch into an isolated, shareable application environment. It uses Docker containers, Nginx routing, and a React dashboard to reduce deployment setup from several manual steps to one branch push.</p>
+<div class="quote">“Push a branch, get a working HTTPS preview link in under 15 seconds.”</div>
+<p class="small">Recommended implementation: Node.js + JavaScript backend, Express.js API, local MongoDB in Docker, React dashboard, Nginx, and Linux.</p>
+</section>
+
+<h2>1. The Problem</h2>
+<p>When a developer wants to show a feature branch, they often need to build the application, start a container, find an unused port, configure a reverse proxy, set up HTTPS, and share the URL manually. This process is slow, repetitive, and error-prone.</p>
+<p>Cloud preview tools solve part of the problem, but they can introduce vendor lock-in, recurring costs, and configuration overhead. DeployForge provides a lightweight, self-hosted alternative for small teams and hackathon projects.</p>
+
+<h2>2. The Solution</h2>
+<p>DeployForge watches Git branches and automatically creates an isolated preview environment for each branch. Every preview receives its own Docker container, port, proxy route, and public HTTPS URL.</p>
+<pre>Git branch push
+      ↓
+Node.js daemon detects the branch
+      ↓
+Docker image is built
+      ↓
+Isolated container starts
+      ↓
+Available port is assigned
+      ↓
+Nginx route is generated and validated
+      ↓
+Health check passes
+      ↓
+HTTPS preview URL is printed and shown in dashboard</pre>
+
+<h2>3. How the System Works</h2>
+<h3>Step 1: Detect Git activity</h3>
+<p>The backend receives a GitHub/GitLab webhook or periodically checks the repository. It identifies a new branch, a new commit, or a deleted branch.</p>
+<h3>Step 2: Build the application</h3>
+<p>The deployment service checks out the branch and builds its Docker image. Build output is stored and made available through the CLI and dashboard.</p>
+<h3>Step 3: Start an isolated container</h3>
+<p>Dockerode communicates with the Docker Engine API through the local Docker socket. The service starts a uniquely named container with CPU, memory, and lifetime limits.</p>
+<h3>Step 4: Allocate a port</h3>
+<p>The port manager selects an unused port from a configured range, records the assignment in MongoDB, and maps the host port to the application port inside the container.</p>
+<h3>Step 5: Configure Nginx</h3>
+<p>The backend generates a route such as <code>feature-login.preview.example.com</code>. It runs <code>nginx -t</code> before reloading Nginx so a bad preview configuration cannot break existing applications.</p>
+<h3>Step 6: Verify and share</h3>
+<p>An HTTP or TCP health check confirms that the application is ready. The CLI prints the HTTPS URL, and the React dashboard displays the deployment and its resource usage.</p>
+
+<h2>4. Technology Stack</h2>
+<table><tr><th>Area</th><th>Technology</th><th>Role</th></tr>
+<tr><td>Backend daemon</td><td>Node.js + JavaScript</td><td>Runs the deployment workflow and background monitoring.</td></tr>
+<tr><td>REST API</td><td>Express.js</td><td>Provides deployment, logs, stats, webhook, and action endpoints.</td></tr>
+<tr><td>CLI</td><td>Commander.js</td><td>Provides commands such as deploy, list, logs, restart, and destroy.</td></tr>
+<tr><td>Docker integration</td><td>Dockerode</td><td>Builds images and controls containers through Docker Engine.</td></tr>
+<tr><td>Git integration</td><td>simple-git + webhooks</td><td>Fetches branches and handles repository events.</td></tr>
+<tr><td>Database</td><td>MongoDB in Docker</td><td>Stores deployments, ports, statuses, logs, errors, and timestamps.</td></tr>
+<tr><td>Optional cloud database</td><td>MongoDB Atlas</td><td>Can be used later through an environment variable.</td></tr>
+<tr><td>Dashboard</td><td>React + TypeScript + Vite</td><td>Displays live deployment and container information.</td></tr>
+<tr><td>Proxy and HTTPS</td><td>Nginx + Certbot/wildcard certificate</td><td>Routes public subdomains to preview containers.</td></tr>
+<tr><td>Infrastructure</td><td>Docker + Linux</td><td>Runs the complete self-hosted platform.</td></tr>
+</table>
+
+<h2>5. Why Node.js and JavaScript?</h2>
+<ul><li>Fast development for a hackathon.</li><li>One ecosystem for the backend, CLI, and React frontend.</li><li>Strong support for webhooks, REST APIs, WebSockets, and Docker libraries.</li><li>Simple JSON-based data flow between Express and React.</li><li>Easy to explain and extend as a backend project.</li></ul>
+
+<h2>6. Why Local MongoDB?</h2>
+<p>MongoDB Atlas may require IP allowlisting and can be inconvenient when a local public IP changes. Therefore, the hackathon setup uses MongoDB in a local Docker container.</p>
+<pre>Node.js backend ──────► MongoDB Docker container
+
+Optional production setup:
+Node.js backend ──────► MongoDB Atlas</pre>
+<p>This approach avoids Atlas connectivity problems, works offline, keeps the database private, and still preserves a cloud-ready architecture through the <code>MONGODB_URI</code> environment variable.</p>
+
+<h2>7. Main Backend Modules</h2>
+<table><tr><th>Module</th><th>Responsibility</th></tr>
+<tr><td>Webhook controller</td><td>Receives GitHub/GitLab events and validates webhook signatures.</td></tr>
+<tr><td>Deployment service</td><td>Coordinates fetch, build, start, health check, proxy, and cleanup steps.</td></tr>
+<tr><td>Docker service</td><td>Wraps Dockerode operations and collects logs/statistics.</td></tr>
+<tr><td>Port manager</td><td>Reserves and releases ports without collisions.</td></tr>
+<tr><td>Nginx service</td><td>Generates, validates, reloads, and removes proxy routes.</td></tr>
+<tr><td>Deployment model</td><td>Stores state in MongoDB using Mongoose.</td></tr>
+<tr><td>Stats service</td><td>Reads CPU and memory usage from Docker.</td></tr>
+<tr><td>Cleanup worker</td><td>Removes deleted, failed, or expired previews.</td></tr>
+</table>
+
+<h2>8. Example API</h2>
+<pre>GET    /api/deployments
+POST   /api/deployments
+GET    /api/deployments/:id
+GET    /api/deployments/:id/logs
+GET    /api/deployments/:id/stats
+POST   /api/deployments/:id/restart
+DELETE /api/deployments/:id
+POST   /api/webhooks/github</pre>
+
+<h2>9. Example CLI Demo</h2>
+<pre>$ deployforge deploy feature/new-header
+
+Branch detected: feature/new-header
+Building Docker image...          done
+Starting isolated container...    done
+Allocated port: 4312              done
+Configuring Nginx...              done
+Health check...                   passed
+
+Preview available:
+https://feature-new-header.preview.example.com</pre>
+
+<h2>10. Security and Reliability</h2>
+<ul><li>Never expose the Docker socket directly to the browser.</li><li>Sanitize branch names before using them in paths, hostnames, or container names.</li><li>Apply CPU, memory, process, and lifetime limits.</li><li>Validate Nginx configuration before every reload.</li><li>Protect dashboard actions and webhooks with authentication and signatures.</li><li>Do not allow arbitrary host filesystem mounts.</li><li>Reconcile MongoDB records with Docker containers after a backend restart.</li></ul>
+
+<h2>11. Presentation Demo</h2>
+<ol><li>Show the empty dashboard.</li><li>Create and push a branch named <code>feature-new-header</code>.</li><li>Show the daemon building the image and starting the container.</li><li>Display the generated HTTPS link in the terminal.</li><li>Open the modified application in a browser.</li><li>Show status, CPU, memory, logs, branch, and commit in the dashboard.</li><li>Delete the branch or preview and demonstrate automatic cleanup.</li></ol>
+
+<h2>12. One-Minute Presentation Explanation</h2>
+<div class="quote">DeployForge is a self-hosted preview deployment platform that converts every Git branch into an isolated Docker environment. A Node.js daemon receives branch events, builds the application, starts a container through Dockerode, allocates a safe port, and dynamically configures Nginx. After a health check, the system generates a public HTTPS preview URL and prints it in the terminal. The React dashboard shows all active previews, logs, CPU usage, and memory usage. We use MongoDB locally through Docker for a reliable hackathon setup, while MongoDB Atlas remains an optional production database. This gives developers fast feedback without cloud vendor lock-in or manual port forwarding.</div>
+
+<h2>13. Future Scope</h2>
+<ul><li>Automatic pull-request comments containing preview links.</li><li>Multiple repositories and team authentication.</li><li>Custom domains and preview environment variables.</li><li>Multi-server workers and Kubernetes support.</li><li>Usage analytics and automatic scaling.</li></ul>
+</body>
+</html>
