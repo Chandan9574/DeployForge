@@ -1,0 +1,28 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: deployforge-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - deployforge-mongo:/data/db
+
+  backend:
+    build: ./backend
+    container_name: deployforge-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/deployforge
+    ports:
+      - "4000:4000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backend/deployments:/app/deployments
+    depends_on:
+      - mongodb
+
+volumes:
+  deployforge-mongo:
