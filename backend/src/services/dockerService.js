@@ -9,11 +9,30 @@ function useMockDocker() {
   return env.USE_MOCK_DOCKER === "true";
 }
 
+async function ensureImage(image) {
+  if (useMockDocker()) return;
+
+  try {
+    await docker.getImage(image).inspect();
+  } catch (error) {
+    if (error.statusCode !== 404) throw error;
+    console.log(`Pulling Docker image ${image}`);
+    const stream = await docker.pull(image);
+    await new Promise((resolve, reject) => {
+      docker.modem.followProgress(stream, (pullError) => {
+        if (pullError) reject(pullError);
+        else resolve();
+      });
+    });
+  }
+}
+
 async function createPreview({ image, name, hostPort, containerPort, labels }) {
   if (useMockDocker()) {
     return { id: `mock-${Date.now()}`, name };
   }
 
+  await ensureImage(image);
   const container = await docker.createContainer({
     Image: image,
     name,
