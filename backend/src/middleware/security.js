@@ -6,12 +6,13 @@ const env = require("../config/env");
 const corsMiddleware = cors({
   origin: env.FRONTEND_ORIGIN,
   methods: ["GET", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
+  allowedHeaders: ["Content-Type", "Authorization", "X-DeployForge-Token"]
 });
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 100,
+  limit: env.RATE_LIMIT_MAX,
+  skip: (request) => request.path === "/api/health",
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { message: "Too many requests. Please try again shortly.", code: "RATE_LIMITED" }
