@@ -18,7 +18,16 @@ const envSchema = z.object({
   DOCKER_READ_ONLY_ROOTFS: z.enum(["true", "false"]).default("true"),
   DOCKER_NO_NEW_PRIVILEGES: z.enum(["true", "false"]).default("true"),
   DOCKER_DROP_ALL_CAPS: z.enum(["true", "false"]).default("true"),
-  DOCKER_CONTAINER_USER: z.string().trim().max(64).default("")
+  DOCKER_CONTAINER_USER: z.string().trim().max(64).default(""),
+  DEPLOYMENT_RUNTIME: z.enum(["local-docker", "agent37"]).default("local-docker"),
+  AGENT37_ENABLED: z.enum(["true", "false"]).default("false"),
+  AGENT37_API_KEY: z.string().trim().default(""),
+  AGENT37_API_BASE_URL: z.string().url().default("https://api.agent37.com/v1"),
+  AGENT37_INSTANCE_DOMAIN: z.string().regex(/^[a-z0-9.-]+$/i).default("agent37.app"),
+  AGENT37_TEMPLATE: z.string().trim().max(128).default(""),
+  AGENT37_ROUTE_TOKEN: z.string().trim().default(""),
+  AGENT37_APP_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  AGENT37_HEALTH_PATH: z.string().regex(/^\/[a-zA-Z0-9/_-]*$/).default("/ping")
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -29,6 +38,11 @@ if (!parsed.success) {
 
 if (parsed.data.PREVIEW_PORT_START > parsed.data.PREVIEW_PORT_END) {
   console.error("PREVIEW_PORT_START must be less than or equal to PREVIEW_PORT_END");
+  process.exit(1);
+}
+
+if (parsed.data.DEPLOYMENT_RUNTIME === "agent37" && (parsed.data.AGENT37_ENABLED !== "true" || !parsed.data.AGENT37_API_KEY)) {
+  console.error("DEPLOYMENT_RUNTIME=agent37 requires AGENT37_ENABLED=true and AGENT37_API_KEY");
   process.exit(1);
 }
 

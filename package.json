@@ -5,6 +5,7 @@
     "backend:install": "npm --prefix backend install",
     "backend:dev": "npm --prefix backend run dev",
     "backend:check": "npm --prefix backend run check",
+    "backend:test": "npm --prefix backend test",
     "frontend:install": "npm --prefix frontend install",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build"

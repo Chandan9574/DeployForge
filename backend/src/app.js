@@ -4,6 +4,7 @@ const express = require("express");
 const morgan = require("morgan");
 const env = require("./config/env");
 const deploymentRoutes = require("./routes/deploymentRoutes");
+const agent37Routes = require("./routes/agent37Routes");
 const healthRoutes = require("./routes/healthRoutes");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./errors/errorHandler");
@@ -25,6 +26,7 @@ app.use(morgan("combined"));
 
 app.use("/api/health", healthRoutes);
 app.use("/api/deployments", deploymentRoutes);
+app.use("/api/agent37", agent37Routes);
 app.use(notFound);
 app.use(errorHandler);
 
