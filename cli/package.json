@@ -1,0 +1,16 @@
+{
+  "name": "deployforge-cli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CLI daemon for DeployForge branch previews",
+  "bin": {
+    "deployforge": "bin/deployforge.js"
+  },
+  "scripts": {
+    "check": "find src bin -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "test": "node --test test"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  }
+}
