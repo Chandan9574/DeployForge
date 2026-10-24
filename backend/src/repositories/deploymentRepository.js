@@ -1,7 +1,7 @@
 const Deployment = require("../models/Deployment");
 
 function findActive(projectName, branchName) {
-  return Deployment.findOne({ projectName, branchName, status: { $ne: "stopped" } });
+  return Deployment.findOne({ projectName, branchName, status: { $in: ["pending", "building", "starting", "running"] } });
 }
 
 function list() {

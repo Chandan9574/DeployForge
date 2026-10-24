@@ -14,6 +14,7 @@ async function createPreview({ image, name, hostPort, containerPort, labels }) {
     return { id: `mock-${Date.now()}`, name };
   }
 
+  await docker.pull(image);
   const container = await docker.createContainer({
     Image: image,
     name,
