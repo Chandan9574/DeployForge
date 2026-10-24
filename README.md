@@ -37,6 +37,12 @@ frontend/
 - Container names and Nginx filenames are generated from bounded slugs.
 - Nginx configuration is validated before reload.
 - Docker containers have CPU and memory limits.
+- Docker containers also enforce PID limits.
+- Containers run with `no-new-privileges`.
+- Linux capabilities are dropped by default, with minimal add-back only when needed.
+- Root filesystem is read-only with small tmpfs mounts for runtime files.
+- Containers are not run in privileged mode.
+- Active preview count per project is capped (`MAX_ACTIVE_DEPLOYMENTS_PER_PROJECT`).
 - Deployment IDs are checked before database queries.
 - Internal error details are not returned to API clients.
 
@@ -94,6 +100,8 @@ curl -X POST http://localhost:4000/api/deployments \
 ```
 
 The default `.env` uses mock Docker mode so the API can be demonstrated without creating containers. Set `USE_MOCK_DOCKER=false` to use the local Docker socket.
+
+Container hardening values are configurable in [backend/.env.example](./backend/.env.example) (`DOCKER_MEMORY_MB`, `DOCKER_CPU_UNITS`, `DOCKER_PIDS_LIMIT`, `DOCKER_READ_ONLY_ROOTFS`, `DOCKER_NO_NEW_PRIVILEGES`, `DOCKER_DROP_ALL_CAPS`, `DOCKER_CONTAINER_USER`).
 
 ## Database
 
