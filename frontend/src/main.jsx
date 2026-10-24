@@ -1,24 +1,32 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ExternalLink, RefreshCw, Trash2, Terminal, Box } from "lucide-react";
+import { ExternalLink, GitBranch, LoaderCircle, RefreshCw, Terminal, Trash2 } from "lucide-react";
 import "./styles.css";
 
 const api = "/api";
 
 function formatBytes(bytes = 0) {
-  if (!bytes) return "0 MB";
-  return `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+  return bytes ? `${(bytes / 1024 / 1024).toFixed(0)} MB` : "0 MB";
 }
 
 function App() {
   const [deployments, setDeployments] = useState([]);
   const [branch, setBranch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function loadDeployments() {
-    const response = await fetch(`${api}/deployments`);
-    setDeployments(await response.json());
+  async function loadDeployments(showRefresh = false) {
+    if (showRefresh) setRefreshing(true);
+    try {
+      const response = await fetch(`${api}/deployments`);
+      if (!response.ok) throw new Error("Unable to load deployments.");
+      setDeployments(await response.json());
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => {
@@ -32,49 +40,71 @@ function App() {
     if (!branch.trim()) return;
     setLoading(true);
     setMessage("");
-    const response = await fetch(`${api}/deployments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branchName: branch.trim(), image: "nginx:alpine", containerPort: 80 })
-    });
-    const data = await response.json();
-    setLoading(false);
-    if (!response.ok) {
-      setMessage(data.message);
-      return;
+    try {
+      const response = await fetch(`${api}/deployments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchName: branch.trim(), image: "nginx:alpine", containerPort: 80 })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to create deployment.");
+      setBranch("");
+      setMessage("Deployment started.");
+      loadDeployments();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
     }
-    setBranch("");
-    setMessage("Preview is ready.");
-    loadDeployments();
   }
 
   async function removeDeployment(id) {
-    await fetch(`${api}/deployments/${id}`, { method: "DELETE" });
-    loadDeployments();
+    try {
+      const response = await fetch(`${api}/deployments/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Unable to remove deployment.");
+      loadDeployments();
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div className="brand"><span className="brand-mark">D</span><div><strong>DeployForge</strong><small>Preview control room</small></div></div>
-        <button className="icon-button" onClick={loadDeployments} title="Refresh"><RefreshCw size={18} /></button>
+    <main className="page">
+      <header className="header">
+        <a className="brand" href="/">DeployForge</a>
+        <button className="refresh" onClick={() => loadDeployments(true)} title="Refresh deployments">
+          <RefreshCw size={15} className={refreshing ? "spin" : ""} /> Refresh
+        </button>
       </header>
 
-      <section className="hero">
-        <div><p className="eyebrow">SELF-HOSTED DEPLOYMENTS</p><h1>Every branch deserves<br /><span>a working preview.</span></h1><p className="intro">Build isolated containers, route them through Nginx, and share a live URL without leaving your terminal.</p></div>
-        <form className="deploy-form" onSubmit={createDeployment}>
-          <label>Deploy a branch</label>
-          <div className="input-row"><input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="feature/your-branch" /><button disabled={loading}>{loading ? "Starting..." : "Create preview"}</button></div>
-          <small>Demo mode uses the nginx:alpine image.</small>
-        </form>
+      <section className="intro">
+        <p className="kicker">DEPLOYMENT PREVIEWS</p>
+        <h1>Test a branch before it ships.</h1>
+        <p>Start a preview environment for a branch and share the link with your team.</p>
       </section>
 
-      {message && <p className="message">{message}</p>}
-      <section className="section-heading"><div><p className="eyebrow">LIVE ENVIRONMENTS</p><h2>Preview deployments</h2></div><span className="count">{deployments.length} total</span></section>
+      <form className="deploy-form" onSubmit={createDeployment}>
+        <label htmlFor="branch">Branch name</label>
+        <div className="form-row">
+          <div className="input">
+            <GitBranch size={16} />
+            <input id="branch" value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="feature/header" />
+          </div>
+          <button className="deploy-button" disabled={loading}>
+            {loading ? <><LoaderCircle size={15} className="spin" /> Starting</> : "Create preview"}
+          </button>
+        </div>
+        <small>Preview environments use the nginx:alpine image in demo mode.</small>
+      </form>
 
-      <section className="deployment-grid">
-        {deployments.length === 0 && <div className="empty"><Box size={30} /><p>No previews yet</p><small>Deploy a branch to see it here.</small></div>}
-        {deployments.map((deployment) => <DeploymentCard key={deployment._id} deployment={deployment} onDelete={removeDeployment} />)}
+      {message && <p className="message">{message}</p>}
+
+      <section className="previews">
+        <div className="section-title">
+          <div><p className="kicker">YOUR PROJECT</p><h2>Preview deployments</h2></div>
+          <span>{deployments.length} {deployments.length === 1 ? "deployment" : "deployments"}</span>
+        </div>
+        {deployments.length === 0 ? <div className="empty"><h3>No preview deployments</h3><p>Create one above to get started.</p></div> : <div className="deployment-list">{deployments.map((deployment) => <DeploymentCard key={deployment._id} deployment={deployment} onDelete={removeDeployment} />)}</div>}
       </section>
     </main>
   );
@@ -82,25 +112,36 @@ function App() {
 
 function DeploymentCard({ deployment, onDelete }) {
   const [stats, setStats] = useState({ cpuPercent: 0, memoryUsage: 0 });
+
   useEffect(() => {
     if (deployment.status !== "running") return undefined;
     let active = true;
-    async function refresh() {
+    async function refreshStats() {
       const response = await fetch(`${api}/deployments/${deployment._id}/stats`);
-      if (active) setStats(await response.json());
+      if (response.ok && active) setStats(await response.json());
     }
-    refresh();
-    const timer = setInterval(refresh, 5000);
+    refreshStats();
+    const timer = setInterval(refreshStats, 5000);
     return () => { active = false; clearInterval(timer); };
   }, [deployment._id, deployment.status]);
 
-  return <article className="deployment-card">
-    <div className="card-top"><div className="branch"><span className={`status-dot ${deployment.status}`} />{deployment.branchName}</div><span className={`status ${deployment.status}`}>{deployment.status}</span></div>
-    <p className="url">{deployment.previewUrl}</p>
-    <div className="metrics"><div><small>CPU</small><strong>{stats.cpuPercent}%</strong></div><div><small>Memory</small><strong>{formatBytes(stats.memoryUsage)}</strong></div><div><small>Port</small><strong>{deployment.hostPort}</strong></div></div>
-    <div className="card-actions"><a href={deployment.previewUrl} target="_blank" rel="noreferrer">Open <ExternalLink size={14} /></a><span><Terminal size={14} /> {deployment.containerName}</span><button onClick={() => onDelete(deployment._id)} title="Delete"><Trash2 size={15} /></button></div>
-    {deployment.errorMessage && <p className="error">{deployment.errorMessage}</p>}
-  </article>;
+  return (
+    <article className="deployment-card">
+      <div className="deployment-main">
+        <div className="branch-name"><span className={`status-dot ${deployment.status}`} /><strong>{deployment.branchName}</strong></div>
+        <span className={`status ${deployment.status}`}>{deployment.status}</span>
+      </div>
+      <a className="preview-url" href={deployment.previewUrl} target="_blank" rel="noreferrer">{deployment.previewUrl}<ExternalLink size={14} /></a>
+      <div className="details">
+        <span><small>CPU</small><strong>{stats.cpuPercent}%</strong></span>
+        <span><small>Memory</small><strong>{formatBytes(stats.memoryUsage)}</strong></span>
+        <span><small>Port</small><strong>{deployment.hostPort || "—"}</strong></span>
+        <span className="container"><Terminal size={13} />{deployment.containerName}</span>
+        <button onClick={() => onDelete(deployment._id)} title="Delete deployment"><Trash2 size={15} /></button>
+      </div>
+      {deployment.errorMessage && <p className="error">{deployment.errorMessage}</p>}
+    </article>
+  );
 }
 
 createRoot(document.getElementById("root")).render(<App />);

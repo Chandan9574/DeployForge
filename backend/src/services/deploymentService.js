@@ -2,9 +2,9 @@ const AppError = require("../errors/AppError");
 const env = require("../config/env");
 const slugify = require("../utils/slugify");
 const { reservePort } = require("./portManager");
-const { createPreview, removePreview, getStats, getLogs } = require("./dockerService");
+const { createPreview, removePreview, isPreviewRunning, getStats, getLogs } = require("./dockerService");
 const { configurePreview, removePreview: removeProxy } = require("./nginxService");
-const { Deployment, findActive, findById, list } = require("../repositories/deploymentRepository");
+const { Deployment, findActive, findById, list, listActive, countActiveByProject } = require("../repositories/deploymentRepository");
 
 function previewUrl(branchName) {
   return `http://${slugify(branchName)}.${env.PREVIEW_DOMAIN}`;
@@ -18,6 +18,14 @@ function publicDeployment(deployment) {
 async function createDeployment(input) {
   const existing = await findActive(input.projectName, input.branchName);
   if (existing) throw new AppError("This branch already has a preview", 409, "DUPLICATE_PREVIEW");
+  const activeCount = await countActiveByProject(input.projectName);
+  if (activeCount >= env.MAX_ACTIVE_DEPLOYMENTS_PER_PROJECT) {
+    throw new AppError(
+      `This project already has ${env.MAX_ACTIVE_DEPLOYMENTS_PER_PROJECT} active previews`,
+      429,
+      "PREVIEW_LIMIT_REACHED"
+    );
+  }
 
   const hostPort = await reservePort(env.PREVIEW_PORT_START, env.PREVIEW_PORT_END);
   const branchSlug = slugify(input.branchName);
@@ -66,12 +74,52 @@ async function createDeployment(input) {
 }
 
 async function getDeployments() {
+  await reconcileDeployments();
   return list();
+}
+
+async function reconcileDeployments() {
+  const activeDeployments = await listActive();
+  await Promise.all(activeDeployments.map(async (deployment) => {
+    if (!deployment.containerId) {
+      deployment.status = "failed";
+      deployment.errorMessage = "Preview has no container assigned.";
+      deployment.logs.push("Preview marked failed because no container was assigned");
+      await deployment.save();
+      return;
+    }
+    const running = await isPreviewRunning(deployment.containerId);
+    if (running) return;
+
+    await removePreview(deployment.containerId);
+    await removeProxy(deployment.branchName);
+    deployment.status = "stopped";
+    deployment.errorMessage = "The preview container is no longer running.";
+    deployment.logs.push("Preview stopped because its container is no longer running");
+    await deployment.save();
+  }));
 }
 
 async function getDeployment(id) {
   const deployment = await findById(id);
   if (!deployment) throw new AppError("Deployment not found", 404, "DEPLOYMENT_NOT_FOUND");
+  if (["pending", "building", "starting", "running"].includes(deployment.status) && deployment.containerId) {
+    const running = await isPreviewRunning(deployment.containerId);
+    if (!running) {
+      await removePreview(deployment.containerId);
+      await removeProxy(deployment.branchName);
+      deployment.status = "stopped";
+      deployment.errorMessage = "The preview container is no longer running.";
+      deployment.logs.push("Preview stopped because its container is no longer running");
+      await deployment.save();
+    }
+  }
+  if (["pending", "building", "starting", "running"].includes(deployment.status) && !deployment.containerId) {
+    deployment.status = "failed";
+    deployment.errorMessage = "Preview has no container assigned.";
+    deployment.logs.push("Preview marked failed because no container was assigned");
+    await deployment.save();
+  }
   return deployment;
 }
 
@@ -96,4 +144,12 @@ async function stopDeployment(id) {
   return publicDeployment(deployment);
 }
 
-module.exports = { createDeployment, getDeployments, getDeployment, getDeploymentStats, getDeploymentLogs, stopDeployment };
+module.exports = {
+  createDeployment,
+  getDeployments,
+  getDeployment,
+  getDeploymentStats,
+  getDeploymentLogs,
+  stopDeployment,
+  reconcileDeployments
+};

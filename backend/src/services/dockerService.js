@@ -9,6 +9,39 @@ function useMockDocker() {
   return env.USE_MOCK_DOCKER === "true";
 }
 
+function hostConfig(containerPort) {
+  const config = {
+    Memory: env.DOCKER_MEMORY_MB * 1024 * 1024,
+    NanoCpus: env.DOCKER_CPU_UNITS,
+    PidsLimit: env.DOCKER_PIDS_LIMIT,
+    Privileged: false,
+    AutoRemove: false
+  };
+
+  if (env.DOCKER_READ_ONLY_ROOTFS === "true") {
+    config.ReadonlyRootfs = true;
+    config.Tmpfs = {
+      "/tmp": "rw,nosuid,nodev,size=32m",
+      "/run": "rw,nosuid,nodev,size=16m",
+      "/var/run": "rw,nosuid,nodev,size=16m",
+      "/var/cache/nginx": "rw,nosuid,nodev,size=64m"
+    };
+  }
+
+  if (env.DOCKER_NO_NEW_PRIVILEGES === "true") {
+    config.SecurityOpt = ["no-new-privileges:true"];
+  }
+
+  if (env.DOCKER_DROP_ALL_CAPS === "true") {
+    config.CapDrop = ["ALL"];
+    if (containerPort < 1024) {
+      config.CapAdd = ["NET_BIND_SERVICE"];
+    }
+  }
+
+  return config;
+}
+
 async function ensureImage(image) {
   if (useMockDocker()) return;
 
@@ -42,10 +75,9 @@ async function createPreview({ image, name, hostPort, containerPort, labels }) {
       PortBindings: {
         [`${containerPort}/tcp`]: [{ HostPort: String(hostPort) }]
       },
-      Memory: 512 * 1024 * 1024,
-      NanoCpus: 500000000,
-      AutoRemove: false
-    }
+      ...hostConfig(containerPort)
+    },
+    User: env.DOCKER_CONTAINER_USER || undefined
   });
   await container.start();
   return { id: container.id, name };
@@ -59,7 +91,24 @@ async function removePreview(containerId) {
   } catch (error) {
     if (error.statusCode !== 304 && error.statusCode !== 404) throw error;
   }
-  await container.remove({ force: true });
+  try {
+    await container.remove({ force: true });
+  } catch (error) {
+    if (error.statusCode !== 404) throw error;
+  }
+}
+
+async function isPreviewRunning(containerId) {
+  if (useMockDocker()) return true;
+
+  const container = docker.getContainer(containerId);
+  try {
+    const details = await container.inspect();
+    return details.State?.Running === true;
+  } catch (error) {
+    if (error.statusCode === 404) return false;
+    throw error;
+  }
 }
 
 async function getStats(containerId) {
@@ -87,4 +136,4 @@ async function getLogs(containerId) {
   return stream.toString().split("\n").filter(Boolean);
 }
 
-module.exports = { createPreview, removePreview, getStats, getLogs };
+module.exports = { createPreview, removePreview, isPreviewRunning, getStats, getLogs };
