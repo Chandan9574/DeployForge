@@ -293,7 +293,7 @@ function TelemetryCard({ deployment, stats, onLogs, onRedeploy, onStop, onDelete
 }
 
 // --- BRANCH DROPDOWN ---
-function BranchDropdown({ repoUrl, value, onChange, disabled }) {
+function BranchDropdown({ repoUrl, value, onChange, disabled, required }) {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -356,7 +356,7 @@ function BranchDropdown({ repoUrl, value, onChange, disabled }) {
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="feature/header"
-            required
+            required={required}
             disabled={disabled}
           />
         </div>
@@ -563,7 +563,7 @@ function Home() {
               <div className="input-row-primary">
                 <GitBranch size={20} color="#888" style={{marginLeft: '0.5rem'}} />
                 <input 
-                  type="url" 
+                  type="text" 
                   className="form-input-transparent"
                   placeholder="Paste GitHub Repository URL... (then press Enter)"
                   value={repoUrl}
@@ -596,6 +596,7 @@ function Home() {
                       value={branch}
                       onChange={setBranch}
                       disabled={loading}
+                      required={step === 2}
                     />
                   </div>
                 </div>
