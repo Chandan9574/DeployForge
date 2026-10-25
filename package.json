@@ -2,6 +2,7 @@
   "name": "deployforge-workspace",
   "private": true,
   "scripts": {
+    "bootstrap": "bash scripts/bootstrap.sh",
     "backend:install": "npm --prefix backend install",
     "backend:dev": "npm --prefix backend run dev",
     "backend:check": "npm --prefix backend run check",

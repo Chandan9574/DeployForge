@@ -49,15 +49,15 @@ Requirements:
 - Node.js 20+
 - Docker
 
-Install dependencies:
+Install dependencies and prepare the local environment:
 
 ```bash
-npm run backend:install
-npm run frontend:install
-cp backend/.env.example backend/.env
+npm run bootstrap
 ```
 
-Start MongoDB:
+The bootstrap script installs the backend and frontend dependencies, creates a private `backend/.env` from the example, prepares the local deployment workspaces, verifies Docker access, and starts the local MongoDB container. If Docker needs setup, it adds the current user to the local `docker` group and then asks you to sign out and back in before running it again. See `scripts/bootstrap.sh --help` for flags such as `--no-install`, `--no-mongo`, and `--skip-docker-permission-check`.
+
+To start MongoDB manually instead:
 
 ```bash
 docker run -d --name deployforge-mongodb -p 27017:27017 mongo:7
