@@ -5,11 +5,31 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   ExternalLink, Trash2, Box, MousePointer, Terminal, 
   GitBranch, Server, Cpu, HardDrive, Clock, Hash, 
-  Play, Square, Activity, CheckCircle, RefreshCw, SquareTerminal
+  Play, Square, Activity, CheckCircle, RefreshCw, SquareTerminal,
+  ChevronDown, X, Check, Copy, RotateCw, LoaderCircle
 } from 'lucide-react';
 import './styles.css';
 
 const api = "/api"; 
+
+// --- DEPLOYMENT STAGES (mirrors main branch logic) ---
+const STAGES = ["cloning", "building", "starting", "checking", "running"];
+const ACTIVE_STATUSES = ["pending", "cloning", "building", "starting", "checking", "running"];
+
+const STATUS_LABELS = {
+  pending: "Queued",
+  cloning: "Cloning",
+  building: "Building",
+  starting: "Starting",
+  checking: "Health check",
+  running: "Running",
+  failed: "Failed",
+  stopped: "Stopped"
+};
+
+function isActive(status) {
+  return ACTIVE_STATUSES.includes(status);
+}
 
 // --- INTERACTIVE MOUSE TRACKER HOOK ---
 function useMousePosition() {
@@ -45,11 +65,19 @@ function SpotlightCard({ children }) {
 // --- BACKGROUND PARTICLES ---
 function BackgroundParticles() {
   const chars = ['d', 'f', '{', '}', '/', '*', 'dev', 'sys', 'up', 'run', '0', '1'];
+  const [particles] = useState(() => Array.from({ length: 25 }, (_, index) => ({
+    id: index,
+    left: `${Math.random() * 100}%`,
+    fontSize: `${Math.random() * 1.5 + 1}rem`,
+    animationDuration: `${Math.random() * 25 + 15}s`,
+    animationDelay: `-${Math.random() * 20}s`,
+    character: chars[Math.floor(Math.random() * chars.length)]
+  })));
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-      {[...Array(25)].map((_, i) => (
-        <span key={i} className="particle" style={{ left: `${Math.random() * 100}%`, fontSize: `${Math.random() * 1.5 + 1}rem`, animationDuration: `${Math.random() * 25 + 15}s`, animationDelay: `-${Math.random() * 20}s` }}>
-          {chars[Math.floor(Math.random() * chars.length)]}
+      {particles.map((particle) => (
+        <span key={particle.id} className="particle" style={{ left: particle.left, fontSize: particle.fontSize, animationDuration: particle.animationDuration, animationDelay: particle.animationDelay }}>
+          {particle.character}
         </span>
       ))}
     </div>
@@ -85,55 +113,284 @@ function ScrollReveal({ children, delay = 0 }) {
   );
 }
 
+function formatBytes(bytes = 0) {
+  if (!bytes) return '0 MB';
+  return `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+}
+
+function formatDeploymentTime(value) {
+  if (!value) return 'Not deployed yet';
+  return new Date(value).toLocaleString();
+}
+
+function formatDuration(ms = 0) {
+  if (!ms) return "—";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+// --- STAGE PROGRESS TIMELINE BAR ---
+function StageProgress({ deployment }) {
+  if (deployment.status === "failed" || deployment.status === "stopped") {
+    return (
+      <div className={`stage-note ${deployment.status}`}>
+        {deployment.errorMessage || `Preview ${deployment.status}`}
+      </div>
+    );
+  }
+
+  const current = deployment.status === "pending" ? -1 : STAGES.indexOf(deployment.status);
+  return (
+    <div className="stages" aria-label="Deployment progress">
+      {STAGES.map((stage, index) => (
+        <span
+          key={stage}
+          className={`stage ${index < current ? "done" : ""} ${index === current ? "current" : ""}`}
+          title={STATUS_LABELS[stage]}
+        >
+          <i />
+          <em>{STATUS_LABELS[stage]}</em>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// --- LOGS DRAWER ---
+function LogsDrawer({ deployment, onClose }) {
+  const [logs, setLogs] = useState([]);
+  const [error, setError] = useState("");
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    let seen = 0;
+
+    async function load() {
+      try {
+        const response = await fetch(`${api}/deployments/${deployment._id}/logs`);
+        const data = await response.json();
+        if (!active) return;
+        const lines = data.logs || [];
+        if (lines.length !== seen) {
+          setLogs(lines);
+          seen = lines.length;
+        }
+      } catch (loadError) {
+        if (active) setError(loadError.message);
+      }
+    }
+
+    load();
+    const timer = setInterval(load, 1500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [deployment._id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [logs]);
+
+  return (
+    <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <aside className="drawer">
+        <header className="drawer-header">
+          <div>
+            <p className="kicker">DEPLOYMENT LOGS</p>
+            <h3>{deployment.branchName}</h3>
+          </div>
+          <button className="icon-button" onClick={onClose}><X size={18} /></button>
+        </header>
+        <div className="drawer-body">
+          {error && <p className="error">{error}</p>}
+          {logs.length === 0 && !error ? <p className="muted">No logs yet.</p> : logs.map((line, index) => (
+            <p className="log-line" key={`${index}-${line.slice(0, 20)}`}>{line}</p>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+        <footer className="drawer-footer">
+          <span><span className={`status-dot-sm ${deployment.status}`} /> {STATUS_LABELS[deployment.status] || deployment.status}</span>
+          <span>Refreshes every 1.5s</span>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
 // --- HORIZONTAL TELEMETRY CARD ---
-function TelemetryCard({ deployment, onDelete }) {
-  const mockCommit = Math.random().toString(16).substr(2, 7);
-  const mockCpu = (Math.random() * 3 + 0.1).toFixed(1);
-  const mockRam = Math.floor(Math.random() * 200 + 50);
-  const containerName = `preview-${deployment.projectName || 'app'}-${deployment.branchName.replace(/[^a-z0-9]/gi, '')}-${Date.now().toString().slice(-8)}`;
+function TelemetryCard({ deployment, stats, onLogs, onRedeploy, onStop, onDelete, busy }) {
+  const cpu = Number(stats?.cpuPercent || 0);
+  const memoryUsage = Number(stats?.memoryUsage || 0);
+  const memoryLimit = Number(stats?.memoryLimit || 0);
+  const previewUrl = deployment.previewUrl || deployment.url || "";
+  const latestLog = deployment.logs?.slice(-1)[0];
 
   return (
     <div className="wide-card">
       <div className="wc-header">
         <div className="wc-title">
+          <span className={`status-dot-sm ${deployment.status}`} />
           {deployment.branchName}
         </div>
-        <div className="status-badge"><span className="live-dot"></span> LIVE</div>
+        <div className={`status-badge status-badge-${deployment.status}`}>
+          {isActive(deployment.status) && deployment.status !== 'running' && (
+            <span className="live-dot amber-dot" />
+          )}
+          {deployment.status === 'running' && <span className="live-dot" />}
+          {STATUS_LABELS[deployment.status] || deployment.status}
+        </div>
       </div>
       
       <div className="wc-meta">
-        <span><Hash size={12} style={{display:'inline', marginBottom:'-2px'}}/> {mockCommit}</span>
-        <span>port {deployment.containerPort}</span>
-        <span>Deployed 1.2s ago</span>
+        <span><Hash size={12} style={{display:'inline', marginBottom:'-2px'}}/> {deployment.commitSha ? deployment.commitSha.slice(0, 7) : 'not recorded'}</span>
+        <span>host port {deployment.hostPort || '—'} · container {deployment.containerPort || '—'}</span>
+        <span>Deployed {formatDeploymentTime(deployment.readyAt || deployment.createdAt)}</span>
+        {deployment.durationMs > 0 && <span>· {formatDuration(deployment.durationMs)}</span>}
       </div>
 
-      <a href={`http://${deployment.url}`} target="_blank" rel="noreferrer" className="wc-link">
-        http://{deployment.url} <ExternalLink size={14} />
-      </a>
+      {/* STATUS TIMELINE BAR */}
+      <StageProgress deployment={deployment} />
+
+      {/* LATEST LOG LINE (during active deploy) */}
+      {isActive(deployment.status) && latestLog && (
+        <p className="latest-log-line"><Terminal size={12} /> {latestLog}</p>
+      )}
+
+      {previewUrl ? (
+        <a href={previewUrl} target="_blank" rel="noreferrer" className="wc-link">
+          {previewUrl} <ExternalLink size={14} />
+        </a>
+      ) : (
+        <span className="wc-link wc-link-unavailable">Preview URL unavailable</span>
+      )}
 
       <div className="wc-metrics-row">
         <div className="metric-box">
-          <div className="metric-label"><span>CPU</span> <span>{mockCpu}%</span></div>
-          <div className="metric-bar"><div className="metric-fill" style={{width: `${mockCpu}%`}}></div></div>
+          <div className="metric-label"><span>CPU</span> <span>{cpu.toFixed(2)}%</span></div>
+          <div className="metric-bar"><div className="metric-fill" style={{width: `${Math.min(cpu, 100)}%`}}></div></div>
         </div>
         <div className="metric-box">
-          <div className="metric-label"><span>MEMORY</span> <span>{mockRam} MB</span></div>
-          <div className="metric-bar"><div className="metric-fill" style={{width: `${(mockRam/512)*100}%`, background: '#3b82f6'}}></div></div>
+          <div className="metric-label"><span>MEMORY</span> <span>{formatBytes(memoryUsage)} / {formatBytes(memoryLimit)}</span></div>
+          <div className="metric-bar"><div className="metric-fill" style={{width: `${memoryLimit ? Math.min((memoryUsage / memoryLimit) * 100, 100) : 0}%`, background: '#3b82f6'}}></div></div>
         </div>
         <div className="metric-box" style={{justifyContent: 'center'}}>
           <div className="metric-label" style={{textTransform: 'none', color: '#aaa', fontSize:'0.7rem'}}>_ CONTAINER</div>
-          <div style={{fontFamily: 'monospace', fontSize: '0.75rem', color: '#666', overflow:'hidden', textOverflow:'ellipsis'}}>{containerName}</div>
+          <div style={{fontFamily: 'monospace', fontSize: '0.75rem', color: '#666', overflow:'hidden', textOverflow:'ellipsis'}}>{deployment.containerName || deployment.containerId || 'No container assigned'}</div>
         </div>
       </div>
       
       <div className="wc-actions">
-        <button className="action-btn"><SquareTerminal size={14} /> Logs</button>
-        <button className="action-btn"><RefreshCw size={14} /> Redeploy</button>
-        <button className="action-btn"><Square size={14} /> Stop</button>
-        <button onClick={() => onDelete(deployment._id)} className="action-btn danger">
+        <button onClick={() => onLogs(deployment)} className="action-btn"><SquareTerminal size={14} /> Logs</button>
+        <button onClick={() => onRedeploy(deployment._id)} disabled={busy || ["cloning","building","starting","checking"].includes(deployment.status)} className="action-btn"><RefreshCw size={14} /> Redeploy</button>
+        <button onClick={() => onStop(deployment._id)} disabled={busy} className="action-btn"><Square size={14} /> Stop</button>
+        <button onClick={() => onDelete(deployment._id)} disabled={busy} className="action-btn danger">
           <Trash2 size={14} /> Delete
         </button>
       </div>
+    </div>
+  );
+}
+
+// --- BRANCH DROPDOWN ---
+function BranchDropdown({ repoUrl, value, onChange, disabled }) {
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!repoUrl) return;
+    setLoading(true);
+    setError("");
+    setBranches([]);
+
+    fetch(`${api}/deployments/branches?repo=${encodeURIComponent(repoUrl)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.branches && data.branches.length > 0) {
+          setBranches(data.branches);
+          // Auto-select 'main' or first branch
+          const defaultBranch = data.branches.includes('main') ? 'main' : data.branches[0];
+          onChange(defaultBranch);
+        } else {
+          setError(data.message || "No branches found");
+        }
+      })
+      .catch(() => setError("Failed to fetch branches"))
+      .finally(() => setLoading(false));
+  }, [repoUrl]);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="branch-dropdown-trigger" style={{opacity: 0.7}}>
+        <GitBranch size={16} color="#888" />
+        <span style={{flex:1, color:'#888'}}>Fetching branches...</span>
+        <LoaderCircle size={16} color="#888" style={{animation:'spin 1s linear infinite'}} />
+      </div>
+    );
+  }
+
+  if (branches.length === 0) {
+    // Fallback to text input if fetch failed or no branches
+    return (
+      <div>
+        <div style={{position: 'relative'}}>
+          <GitBranch size={16} color="#888" style={{position: 'absolute', left: '12px', top: '14px'}} />
+          <input
+            type="text"
+            className="form-input-dark"
+            style={{paddingLeft: '2.5rem'}}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="feature/header"
+            required
+            disabled={disabled}
+          />
+        </div>
+        {error && <p style={{color:'#f87171', fontSize:'0.75rem', marginTop:'0.4rem'}}>{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={dropdownRef} style={{position:'relative'}}>
+      <div
+        className="branch-dropdown-trigger"
+        onClick={() => !disabled && setOpen(o => !o)}
+        style={{cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.7 : 1}}
+      >
+        <GitBranch size={16} color="#888" />
+        <span style={{flex:1, color: value ? 'white' : '#888'}}>{value || 'Select branch'}</span>
+        <ChevronDown size={16} color="#888" style={{transform: open ? 'rotate(180deg)' : 'none', transition:'transform 0.2s'}} />
+      </div>
+      {open && (
+        <div className="branch-dropdown-menu">
+          {branches.map(branch => (
+            <div
+              key={branch}
+              className={`branch-dropdown-item ${branch === value ? 'selected' : ''}`}
+              onClick={() => { onChange(branch); setOpen(false); }}
+            >
+              <GitBranch size={13} />
+              {branch}
+              {branch === value && <Check size={13} style={{marginLeft:'auto'}} />}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -142,6 +399,9 @@ function TelemetryCard({ deployment, onDelete }) {
 function Home() {
   const mouse = useMousePosition();
   const [deployments, setDeployments] = useState([]);
+  const [metrics, setMetrics] = useState({});
+  const [logsFor, setLogsFor] = useState(null);
+  const [actionId, setActionId] = useState("");
   
   // Wizard State
   const [step, setStep] = useState(1);
@@ -153,8 +413,14 @@ function Home() {
   async function loadDeployments() {
     try {
       const response = await fetch(`${api}/deployments`);
+      if (!response.ok) throw new Error('Unable to load deployments');
       const data = await response.json();
       setDeployments(data);
+      const samples = await Promise.all(data.map(async (deployment) => {
+        const statsResponse = await fetch(`${api}/deployments/${deployment._id}/stats`);
+        return [deployment._id, statsResponse.ok ? await statsResponse.json() : null];
+      }));
+      setMetrics(Object.fromEntries(samples.filter(([, sample]) => sample)));
     } catch (e) { console.error(e); }
   }
 
@@ -170,10 +436,10 @@ function Home() {
     if (repoUrl.trim()) {
       let autoName = "demo-app";
       if (repoUrl.includes("github.com/")) {
-        autoName = repoUrl.split("github.com/")[1].split("/")[1] || "demo-app";
+        autoName = repoUrl.split("github.com/")[1].split("/")[1]?.replace(/\.git$/, '') || "demo-app";
       }
       setProjectName(autoName);
-      setBranch("main");
+      setBranch(""); // Will be auto-set by BranchDropdown
       setStep(2);
     }
   };
@@ -189,7 +455,15 @@ function Home() {
       const response = await fetch(`${api}/deployments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchName: branch.trim(), projectName: projectName, image: "nginx:alpine", containerPort: 80 })
+        body: JSON.stringify({
+          branchName: branch.trim(),
+          projectName: projectName.trim() || 'demo-app',
+          repositoryUrl: repoUrl.trim(),
+          deploymentMode: 'dockerfile',
+          dockerfilePath: 'Dockerfile',
+          buildContext: '.',
+          healthcheckPath: '/'
+        })
       });
       const data = await response.json();
       setLoading(false);
@@ -213,13 +487,45 @@ function Home() {
     }
   }
 
-  async function removeDeployment(id) {
+  async function runAction(id, action, options = {}) {
+    setActionId(id);
     try {
-      await fetch(`${api}/deployments/${id}`, { method: "DELETE" });
-      toast.success("Environment destroyed");
+      const response = await fetch(`${api}/deployments/${id}${action}`, options);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Request failed');
+      return data;
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function redeployDeployment(id) {
+    try {
+      await runAction(id, '/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      toast.success('Redeployment started');
       loadDeployments();
     } catch (e) {
-      toast.error("Failed to destroy");
+      toast.error(e.message || 'Failed to redeploy');
+    }
+  }
+
+  async function stopDeployment(id) {
+    try {
+      await runAction(id, '/stop', { method: 'POST' });
+      toast.success('Preview stopped');
+      loadDeployments();
+    } catch (e) {
+      toast.error(e.message || 'Failed to stop preview');
+    }
+  }
+
+  async function removeDeployment(id) {
+    try {
+      await runAction(id, '', { method: 'DELETE' });
+      toast.success("Environment deleted");
+      loadDeployments();
+    } catch (e) {
+      toast.error(e.message || "Failed to delete preview");
     }
   }
 
@@ -261,7 +567,7 @@ function Home() {
                   className="form-input-transparent"
                   placeholder="Paste GitHub Repository URL... (then press Enter)"
                   value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
+                  onChange={(e) => { setRepoUrl(e.target.value); if (step === 2) { setStep(1); setBranch(''); } }}
                   disabled={loading}
                   required
                 />
@@ -285,23 +591,17 @@ function Home() {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Target Branch</label>
-                    <div style={{position: 'relative'}}>
-                      <GitBranch size={16} color="#888" style={{position: 'absolute', left: '12px', top: '14px'}} />
-                      <input 
-                        type="text" 
-                        className="form-input-dark"
-                        style={{paddingLeft: '2.5rem'}}
-                        value={branch}
-                        onChange={(e) => setBranch(e.target.value)}
-                        placeholder="feature/header"
-                        required={step === 2}
-                      />
-                    </div>
+                    <BranchDropdown
+                      repoUrl={step === 2 ? repoUrl : ""}
+                      value={branch}
+                      onChange={setBranch}
+                      disabled={loading}
+                    />
                   </div>
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                   <span style={{fontSize: '0.75rem', color: '#666'}}>Containers are fully isolated and resource-limited.</span>
-                  <button type="submit" className="btn-primary" disabled={loading}>
+                  <button type="submit" className="btn-primary" disabled={loading || !branch}>
                     <Play size={16} style={{display:'inline', marginBottom:'-3px', marginRight:'6px'}}/>
                     {loading ? "Deploying..." : "Launch Preview"}
                   </button>
@@ -337,7 +637,16 @@ function Home() {
                 </div>
               ) : (
                 deployments.map((dep) => (
-                  <TelemetryCard key={dep._id} deployment={dep} onDelete={removeDeployment} />
+                  <TelemetryCard
+                    key={dep._id}
+                    deployment={dep}
+                    stats={metrics[dep._id]}
+                    onLogs={setLogsFor}
+                    onRedeploy={redeployDeployment}
+                    onStop={stopDeployment}
+                    onDelete={removeDeployment}
+                    busy={actionId === dep._id}
+                  />
                 ))
               )}
             </div>
@@ -367,11 +676,14 @@ function Home() {
           </ScrollReveal>
         </div>
       </footer>
+
+      {/* LOGS DRAWER OVERLAY */}
+      {logsFor && <LogsDrawer deployment={logsFor} onClose={() => setLogsFor(null)} />}
     </>
   );
 }
 
-// --- FEATURES PAGE (RESTORED) ---
+// --- FEATURES PAGE ---
 function Features() {
   const [text, setText] = useState("");
   const fullText = "$ deployforge push feature-ui\n> Isolating Docker container...\n> Linking Nginx proxy...\n> SUCCESS! Environment live at proxy.deployforge.local";
@@ -422,7 +734,7 @@ function Features() {
   );
 }
 
-// --- ABOUT PAGE (RESTORED) ---
+// --- ABOUT PAGE ---
 function About() {
   const team = [
     { name: "Aditya Raj", role: "NIT MZ" },
@@ -464,7 +776,7 @@ function About() {
   );
 }
 
-// --- APP ROUTER (RESTORED) ---
+// --- APP ROUTER ---
 function App() {
   return (
     <BrowserRouter>
@@ -490,7 +802,8 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+const rootElement = document.getElementById('root');
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>

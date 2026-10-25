@@ -452,3 +452,243 @@ body {
   margin: 0 auto;
   width: 100%;
 }
+
+
+/* --- STATUS DOT (SMALL, INLINE) --- */
+.status-dot-sm {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ba6a4;
+  flex: 0 0 auto;
+}
+.status-dot-sm.running { background: #29a576; box-shadow: 0 0 0 2px rgba(41,165,118,0.2); }
+.status-dot-sm.pending { background: #8b9a96; }
+.status-dot-sm.cloning, .status-dot-sm.building, .status-dot-sm.starting, .status-dot-sm.checking { background: #e5a53b; animation: pulse-sm 1.2s ease-in-out infinite; }
+.status-dot-sm.failed { background: #d65d63; }
+.status-dot-sm.stopped { background: #a6b0ad; }
+
+@keyframes pulse-sm {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 165, 59, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(229, 165, 59, 0); }
+}
+
+/* --- STATUS BADGE VARIANTS --- */
+.status-badge-running { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.status-badge-failed { background: rgba(220, 38, 38, 0.1); color: #f87171; }
+.status-badge-stopped { background: rgba(107, 114, 128, 0.1); color: #9ca3af; }
+.status-badge-pending,
+.status-badge-cloning,
+.status-badge-building,
+.status-badge-starting,
+.status-badge-checking { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+.amber-dot {
+  background-color: #f59e0b !important;
+  animation: pulse-amber 2s infinite !important;
+}
+@keyframes pulse-amber {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* --- STAGE PROGRESS TIMELINE --- */
+.stages {
+  display: flex;
+  align-items: center;
+  margin: 1rem 0 0.75rem;
+  gap: 0;
+}
+.stage {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.stage i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d7dfdc;
+  display: block;
+  flex: 0 0 auto;
+}
+.stage em {
+  color: #a3afab;
+  font-size: 9px;
+  font-style: normal;
+  white-space: nowrap;
+}
+.stage:not(:last-child)::after {
+  content: "";
+  height: 1px;
+  background: #e2e8e5;
+  flex: 1;
+  margin: 0 6px;
+}
+.stage.done i, .stage.current i { background: #44a18e; }
+.stage.done em, .stage.current em { color: #4f7f75; }
+.stage.current i { box-shadow: 0 0 0 3px rgba(68, 161, 142, 0.25); animation: pulse-sm 1.2s ease-in-out infinite; }
+.stage-note {
+  font-size: 0.8rem;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.75rem 0 0.5rem;
+}
+.stage-note.failed { color: #b6434d; background: #fff2f2; }
+.stage-note.stopped { color: #74837f; background: #f3f5f4; }
+
+/* --- LATEST LOG LINE --- */
+.latest-log-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8b9894;
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0 0 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- LOGS DRAWER --- */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+.drawer {
+  width: min(520px, 95vw);
+  height: 100%;
+  background: #0f0f0f;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.drawer-header .kicker {
+  color: #555;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  margin: 0 0 0.3rem;
+}
+.drawer-header h3 {
+  color: #e5e7eb;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+  font-family: var(--font-sans);
+}
+.icon-button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+.icon-button:hover { color: #e5e7eb; }
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+.log-line {
+  color: #a3e6cb;
+  margin: 0;
+  padding: 1px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  word-break: break-all;
+}
+.muted { color: #555; font-family: var(--font-sans); }
+.error { color: #f87171; font-family: var(--font-sans); font-size: 0.85rem; }
+.drawer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.75rem;
+  color: #555;
+  font-family: var(--font-sans);
+}
+
+/* --- BRANCH DROPDOWN --- */
+.branch-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  user-select: none;
+}
+.branch-dropdown-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.branch-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  z-index: 500;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  animation: dropIn 0.15s ease;
+}
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.branch-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  color: #ccc;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: var(--font-sans);
+}
+.branch-dropdown-item:hover { background: rgba(255,255,255,0.06); color: white; }
+.branch-dropdown-item.selected { color: #10b981; background: rgba(16,185,129,0.08); }
+
+/* --- SPIN ANIMATION --- */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
