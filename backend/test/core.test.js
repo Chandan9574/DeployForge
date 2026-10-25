@@ -15,8 +15,8 @@ test("branch slugs are bounded and host-safe", () => {
   assert.equal(slugify("Feature/New Header!"), "feature-new-header");
   const slug = previewSlug("My Project", "feature/very/long/branch/name/that/keeps/going");
   assert.ok(slug.length <= 53);
-  assert.match(previewHost("demo-app", "feature/header"), /^preview-demo-app-feature-header\.localhost$/);
-  assert.match(previewUrl("demo-app", "feature/header"), /^http:\/\/preview-demo-app-feature-header\.localhost$/);
+  assert.match(previewHost("demo-app", "feature/header"), /^demo-app-feature-header\.preview\.localhost$/);
+  assert.match(previewUrl("demo-app", "feature/header"), /^http:\/\/demo-app-feature-header\.preview\.localhost$/);
 });
 
 test("image mode is inferred and allowlisted", () => {

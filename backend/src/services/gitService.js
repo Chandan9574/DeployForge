@@ -138,19 +138,4 @@ async function removeWorkspace(workspace) {
   }
 }
 
-async function listRemoteBranches(repositoryUrl) {
-  await assertRepositoryUrl(repositoryUrl);
-  try {
-    const output = await runGit(["ls-remote", "--heads", repositoryUrl]);
-    const branches = output
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => line.replace(/.*refs\/heads\//, "").trim())
-      .filter(Boolean);
-    return branches;
-  } catch {
-    throw new AppError("Unable to list remote branches. Ensure the repository is public and accessible.", 400, "GIT_LS_REMOTE_FAILED");
-  }
-}
-
-module.exports = { assertRepositoryUrl, cloneBranch, removeWorkspace, workspacePath, runGit, listRemoteBranches };
+module.exports = { assertRepositoryUrl, cloneBranch, removeWorkspace, workspacePath, runGit };

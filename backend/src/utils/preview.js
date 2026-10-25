@@ -16,12 +16,11 @@ function previewSlug(projectName, branchName) {
 }
 
 function previewHost(projectName, branchName) {
-  return `${env.PREVIEW_HOST_PREFIX}-${previewSlug(projectName, branchName)}.${env.PREVIEW_DOMAIN}`.toLowerCase();
+  return `${previewSlug(projectName, branchName)}.${env.PREVIEW_DOMAIN}`.toLowerCase();
 }
 
-function previewUrl(projectName, branchName, port) {
-  const portSuffix = port ? `:${port}` : "";
-  return `${env.PREVIEW_SCHEME}://${previewHost(projectName, branchName)}${portSuffix}`;
+function previewUrl(projectName, branchName) {
+  return `${env.PREVIEW_SCHEME}://${previewHost(projectName, branchName)}`;
 }
 
 module.exports = { slugify, previewSlug, previewHost, previewUrl };

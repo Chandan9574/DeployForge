@@ -59,9 +59,6 @@ function addLog(deployment, message) {
 function publicDeployment(deployment) {
   const value = deployment.toObject ? deployment.toObject() : { ...deployment };
   delete value.runToken;
-  if (env.NGINX_ENABLED !== "true" && value.hostPort) {
-    value.previewUrl = previewUrl(value.projectName, value.branchName, value.hostPort);
-  }
   return {
     ...value,
     logs: Array.isArray(value.logs) ? value.logs.slice(-100) : [],
@@ -113,11 +110,9 @@ async function createRecord(input) {
 
   for (let attempt = 0; attempt <= env.PREVIEW_PORT_END - env.PREVIEW_PORT_START; attempt += 1) {
     const hostPort = await reservePort(env.PREVIEW_PORT_START, env.PREVIEW_PORT_END, usedPorts);
-    const preview = previewUrl(
-      input.projectName,
-      input.branchName,
-      env.NGINX_ENABLED === "true" ? undefined : hostPort
-    );
+    const preview = env.NGINX_ENABLED === "true"
+      ? previewUrl(input.projectName, input.branchName)
+      : `${env.PREVIEW_SCHEME}://localhost:${hostPort}`;
     try {
       return await createDeployment({
         ...input,
@@ -334,7 +329,10 @@ async function getDeployments(projectName) {
   const deployments = await list();
   return deployments
     .filter((deployment) => !projectName || deployment.projectName === projectName)
-    .map(publicDeployment);
+    .map((deployment) => ({
+      ...deployment,
+      logs: Array.isArray(deployment.logs) ? deployment.logs.slice(-100) : []
+    }));
 }
 
 async function reconcileDeployments() {
@@ -452,23 +450,6 @@ async function deleteDeployment(id) {
   return { id: String(deployment._id), deleted: true };
 }
 
-async function stopDeployment(id) {
-  const deployment = await getDeployment(id);
-  const previousContainer = deployment.containerId;
-  deployment.runToken = crypto.randomUUID();
-  deployment.status = "stopped";
-  deployment.containerId = "";
-  addLog(deployment, "Preview stopped");
-  await deployment.save();
-
-  if (previousContainer) await removePreview(previousContainer).catch(() => {});
-  const replacement = await findActive(deployment.projectName, deployment.branchName);
-  if (!replacement) {
-    await removeProxy(deployment.projectName, deployment.branchName).catch(() => {});
-  }
-  return publicDeployment(deployment);
-}
-
 async function redeployDeployment(id, overrides = {}) {
   const deployment = await getDeployment(id);
   const input = {
@@ -510,7 +491,6 @@ module.exports = {
   getDeployment,
   getDeploymentStats,
   getDeploymentLogs,
-  stopDeployment,
   deleteDeployment,
   redeployDeployment,
   reconcileDeployments,

@@ -7,3 +7,7 @@ logs
 deployments
 
 .vscode/
+
+.deployforge
+infra/certs/*
+!infra/certs/.gitkeep

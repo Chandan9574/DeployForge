@@ -5,8 +5,15 @@
     "backend:install": "npm --prefix backend install",
     "backend:dev": "npm --prefix backend run dev",
     "backend:check": "npm --prefix backend run check",
+    "backend:test": "npm --prefix backend test",
     "frontend:install": "npm --prefix frontend install",
     "frontend:dev": "npm --prefix frontend run dev",
-    "frontend:build": "npm --prefix frontend run build"
+    "frontend:build": "npm --prefix frontend run build",
+    "cli:install": "npm --prefix cli install",
+    "cli:check": "npm --prefix cli run check",
+    "cli:test": "npm --prefix cli test",
+    "cli:link": "npm --prefix cli link",
+    "deployforge": "node cli/bin/deployforge.js",
+    "test": "npm run backend:test && npm run cli:test"
   }
 }
