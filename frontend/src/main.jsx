@@ -677,7 +677,7 @@ function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', color: '#999', fontSize: '1.1rem' }}>
               <Link to="/features" style={{ color: '#999', textDecoration: 'none', transition: 'color 0.2s' }}>Features</Link>
               <Link to="/about" style={{ color: '#999', textDecoration: 'none', transition: 'color 0.2s' }}>About the Team</Link>
-              <a href="#" style={{ color: '#999', textDecoration: 'none', transition: 'color 0.2s' }}>GitHub Repository</a>
+              <a href="https://github.com/Chandan9574/DeployForge" target="_blank" rel="noreferrer" style={{ color: '#999', textDecoration: 'none', transition: 'color 0.2s' }}>GitHub Repository</a>
             </div>
           </ScrollReveal>
           <ScrollReveal delay={200}>
