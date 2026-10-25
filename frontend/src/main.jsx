@@ -155,8 +155,8 @@ function StageProgress({ deployment }) {
   );
 }
 
-// --- LOGS DRAWER ---
-function LogsDrawer({ deployment, onClose }) {
+// --- INLINE LOGS PANEL (expands below card) ---
+function InlineLogs({ deploymentId, status, onClose }) {
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
@@ -167,7 +167,7 @@ function LogsDrawer({ deployment, onClose }) {
 
     async function load() {
       try {
-        const response = await fetch(`${api}/deployments/${deployment._id}/logs`);
+        const response = await fetch(`${api}/deployments/${deploymentId}/logs`);
         const data = await response.json();
         if (!active) return;
         const lines = data.logs || [];
@@ -182,44 +182,46 @@ function LogsDrawer({ deployment, onClose }) {
 
     load();
     const timer = setInterval(load, 1500);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [deployment._id]);
+    return () => { active = false; clearInterval(timer); };
+  }, [deploymentId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [logs]);
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <aside className="drawer">
-        <header className="drawer-header">
-          <div>
-            <p className="kicker">DEPLOYMENT LOGS</p>
-            <h3>{deployment.branchName}</h3>
-          </div>
-          <button className="icon-button" onClick={onClose}><X size={18} /></button>
-        </header>
-        <div className="drawer-body">
-          {error && <p className="error">{error}</p>}
-          {logs.length === 0 && !error ? <p className="muted">No logs yet.</p> : logs.map((line, index) => (
-            <p className="log-line" key={`${index}-${line.slice(0, 20)}`}>{line}</p>
-          ))}
-          <div ref={bottomRef} />
+    <div className="inline-logs">
+      <div className="inline-logs-header">
+        <span className="inline-logs-title">
+          <Terminal size={13} /> DEPLOYMENT LOGS
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span className="inline-logs-status">
+            <span className={`status-dot-sm ${status}`} />
+            {STATUS_LABELS[status] || status} · refreshes every 1.5s
+          </span>
+          <button className="icon-button" onClick={onClose} title="Close logs">
+            <X size={15} />
+          </button>
         </div>
-        <footer className="drawer-footer">
-          <span><span className={`status-dot-sm ${deployment.status}`} /> {STATUS_LABELS[deployment.status] || deployment.status}</span>
-          <span>Refreshes every 1.5s</span>
-        </footer>
-      </aside>
+      </div>
+      <div className="inline-logs-body">
+        {error && <p className="log-line" style={{ color: '#f87171' }}>{error}</p>}
+        {logs.length === 0 && !error
+          ? <p className="log-line" style={{ color: '#555' }}>No logs yet.</p>
+          : logs.map((line, i) => (
+              <p className="log-line" key={`${i}-${line.slice(0, 20)}`}>{line}</p>
+            ))
+        }
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }
 
 // --- HORIZONTAL TELEMETRY CARD ---
-function TelemetryCard({ deployment, stats, onLogs, onRedeploy, onStop, onDelete, busy }) {
+function TelemetryCard({ deployment, stats, onRedeploy, onStop, onDelete, busy }) {
+  const [logsOpen, setLogsOpen] = useState(false);
   const cpu = Number(stats?.cpuPercent || 0);
   const memoryUsage = Number(stats?.memoryUsage || 0);
   const memoryLimit = Number(stats?.memoryLimit || 0);
@@ -281,13 +283,24 @@ function TelemetryCard({ deployment, stats, onLogs, onRedeploy, onStop, onDelete
       </div>
       
       <div className="wc-actions">
-        <button onClick={() => onLogs(deployment)} className="action-btn"><SquareTerminal size={14} /> Logs</button>
+        <button onClick={() => setLogsOpen(o => !o)} className={`action-btn ${logsOpen ? 'active' : ''}`}>
+          <SquareTerminal size={14} /> {logsOpen ? 'Hide Logs' : 'Logs'}
+        </button>
         <button onClick={() => onRedeploy(deployment._id)} disabled={busy || ["cloning","building","starting","checking"].includes(deployment.status)} className="action-btn"><RefreshCw size={14} /> Redeploy</button>
         <button onClick={() => onStop(deployment._id)} disabled={busy} className="action-btn"><Square size={14} /> Stop</button>
         <button onClick={() => onDelete(deployment._id)} disabled={busy} className="action-btn danger">
           <Trash2 size={14} /> Delete
         </button>
       </div>
+
+      {/* INLINE LOGS PANEL */}
+      {logsOpen && (
+        <InlineLogs
+          deploymentId={deployment._id}
+          status={deployment.status}
+          onClose={() => setLogsOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -400,7 +413,6 @@ function Home() {
   const mouse = useMousePosition();
   const [deployments, setDeployments] = useState([]);
   const [metrics, setMetrics] = useState({});
-  const [logsFor, setLogsFor] = useState(null);
   const [actionId, setActionId] = useState("");
   
   // Wizard State
@@ -642,7 +654,6 @@ function Home() {
                     key={dep._id}
                     deployment={dep}
                     stats={metrics[dep._id]}
-                    onLogs={setLogsFor}
                     onRedeploy={redeployDeployment}
                     onStop={stopDeployment}
                     onDelete={removeDeployment}
@@ -677,9 +688,6 @@ function Home() {
           </ScrollReveal>
         </div>
       </footer>
-
-      {/* LOGS DRAWER OVERLAY */}
-      {logsFor && <LogsDrawer deployment={logsFor} onClose={() => setLogsFor(null)} />}
     </>
   );
 }
