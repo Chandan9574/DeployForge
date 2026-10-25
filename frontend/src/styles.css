@@ -58,6 +58,19 @@ body {
 .nav-links a:hover, .nav-links a.active {
   color: white;
 }
+.agent37-settings-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 2.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  font: 500 0.95rem var(--font-sans);
+}
+.agent37-settings-button:hover { color: white; }
 
 /* --- ENGINEER'S BLUEPRINT GRID --- */
 .bg-grid {
@@ -253,6 +266,55 @@ body {
 }
 .form-input-dark:focus {
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* --- AGENT37 PREFLIGHT REPORT --- */
+.agent37-preflight {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  background: #f8fcfa;
+  color: #193b37;
+  border: 1px solid #b9d7d0;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+.agent37-preflight-heading { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.9rem; }
+.agent37-bot { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; color: white; background: #168274; }
+.agent37-preflight-heading p { margin: 0 0 0.15rem; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; color: #247d72; }
+.agent37-preflight-heading h3 { font-family: var(--font-sans); font-size: 1rem; line-height: 1; }
+.agent37-spinner { margin-left: auto; color: #247d72; animation: spin 1s linear infinite; }
+.agent37-check-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.55rem; }
+.agent37-check { display: flex; align-items: flex-start; gap: 0.5rem; min-width: 0; padding: 0.7rem; border-radius: 7px; background: #ebf6f2; }
+.agent37-check.failed { background: #fff5e5; color: #875817; }
+.agent37-check-icon { flex: 0 0 auto; color: #168274; line-height: 1; margin-top: 0.05rem; }
+.agent37-check.failed .agent37-check-icon { color: #a76a15; }
+.agent37-check strong { display: flex; align-items: center; gap: 0.28rem; font-size: 0.7rem; line-height: 1.1; }
+.agent37-check span { display: block; margin-top: 0.25rem; font-size: 0.65rem; line-height: 1.25; color: #4a716b; }
+.agent37-check.failed span { color: #906a34; }
+.agent37-preflight-summary, .agent37-preflight-pending, .agent37-preflight-error { margin: 0.8rem 0 0; font-size: 0.7rem; color: #66817c; }
+.agent37-preflight-summary.ready { color: #187363; font-weight: 600; }
+.agent37-preflight-error { color: #a93d35; }
+.agent37-preflight-card { margin-top: 1.1rem; box-shadow: none; }
+.agent37-modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(5px); }
+.agent37-modal { position: relative; width: min(100%, 460px); padding: 1.5rem; border: 1px solid #b9d7d0; border-radius: 14px; background: #f8fcfa; color: #193b37; box-shadow: 0 24px 80px rgba(0,0,0,0.45); }
+.agent37-modal-close { position: absolute; top: 0.9rem; right: 0.9rem; border: 0; background: transparent; color: #66817c; cursor: pointer; }
+.agent37-modal-kicker { margin: 0.75rem 0 0.25rem; color: #247d72; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; }
+.agent37-modal h2 { font-family: var(--font-serif); font-size: 2rem; font-weight: 400; }
+.agent37-modal-copy { margin: 0.65rem 0 1rem; color: #54716c; font-size: 0.82rem; line-height: 1.45; }
+.agent37-configuration-status { margin: 0 0 1rem; padding: 0.65rem 0.75rem; border-radius: 7px; background: #fff5e5; color: #906a34; font-size: 0.78rem; }
+.agent37-configuration-status.configured { background: #ebf6f2; color: #187363; }
+.agent37-modal-label { display: block; margin: 0.8rem 0 0.35rem; font-size: 0.75rem; font-weight: 600; }
+.agent37-key-input, .agent37-modal-input { width: 100%; border: 1px solid #b9d7d0; border-radius: 7px; background: white; color: #193b37; font: 0.85rem var(--font-sans); outline: none; }
+.agent37-key-input { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem; }
+.agent37-key-input svg { color: #247d72; flex: 0 0 auto; }
+.agent37-key-input input { width: 100%; min-width: 0; padding: 0.75rem 0; border: 0; outline: 0; color: inherit; font: inherit; }
+.agent37-modal-input { padding: 0.75rem; }
+.agent37-modal-error { margin: 0.75rem 0 0; color: #a93d35; font-size: 0.78rem; }
+.agent37-save { width: 100%; margin-top: 1.1rem; padding: 0.8rem 1rem; border: 0; border-radius: 7px; background: #168274; color: white; cursor: pointer; font: 600 0.86rem var(--font-sans); }
+.agent37-save:disabled { cursor: wait; opacity: 0.65; }
+
+@media (max-width: 720px) {
+  .agent37-check-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* --- HORIZONTAL TELEMETRY LIST --- */

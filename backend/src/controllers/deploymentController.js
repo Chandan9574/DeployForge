@@ -1,7 +1,8 @@
 const env = require("../config/env");
-const { validateDeployment, validateRedeploy } = require("../validators/deploymentValidator");
+const { validateDeployment, validateRedeploy, validatePreflight } = require("../validators/deploymentValidator");
 const deploymentService = require("../services/deploymentService");
-const { assertRepositoryUrl, listRemoteBranches } = require("../services/gitService");
+const { assertRepositoryUrl, listRemoteBranches, inspectBranchDockerfile } = require("../services/gitService");
+const agent37 = require("../services/agent37Service");
 const validateObjectId = require("../utils/validateObjectId");
 
 async function create(request, response) {
@@ -68,4 +69,44 @@ async function listBranches(request, response) {
   response.json({ branches });
 }
 
-module.exports = { create, config, list, getOne, stats, logs, remove, restart, stop, listBranches };
+function failedCheck(message) {
+  return { status: "failed", message };
+}
+
+async function preflight(request, response) {
+  const input = validatePreflight(request.body);
+  await agent37.verifyAccess();
+  let repository;
+  let branches = [];
+
+  try {
+    await assertRepositoryUrl(input.repositoryUrl);
+    branches = await listRemoteBranches(input.repositoryUrl);
+    repository = { status: "passed", message: "Repository URL looks reachable." };
+  } catch (error) {
+    repository = failedCheck(error.message || "Repository URL could not be reached.");
+  }
+
+  const branchFound = repository.status === "passed" && branches.includes(input.branchName);
+  const branch = branchFound
+    ? { status: "passed", message: `Agent37 will deploy ${input.branchName}.` }
+    : failedCheck(repository.status === "passed" ? `Branch ${input.branchName} was not found.` : "Resolve the repository URL first.");
+
+  const health = {
+    status: "passed",
+    message: `${input.healthcheckPath} is a valid path.`
+  };
+
+  const hasDockerfile = branchFound && await inspectBranchDockerfile(input);
+  const dockerfile = hasDockerfile
+    ? { status: "passed", message: `${input.dockerfilePath} is available on ${input.branchName}.` }
+    : failedCheck(branchFound ? `${input.dockerfilePath} is missing on ${input.branchName}.` : "Choose a reachable branch to check the Dockerfile.");
+
+  response.json({
+    provider: "Agent37",
+    checks: { repository, branch, health, dockerfile },
+    ready: [repository, branch, health, dockerfile].every((check) => check.status === "passed")
+  });
+}
+
+module.exports = { create, config, list, getOne, stats, logs, remove, restart, stop, listBranches, preflight };

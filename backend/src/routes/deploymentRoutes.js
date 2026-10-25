@@ -6,6 +6,7 @@ const controller = require("../controllers/deploymentController");
 const router = express.Router();
 router.get("/config", asyncHandler(controller.config));
 router.get("/branches", asyncHandler(controller.listBranches));
+router.post("/preflight", asyncHandler(controller.preflight));
 router.get("/", asyncHandler(controller.list));
 router.post("/", apiAuth, asyncHandler(controller.create));
 router.get("/:id", asyncHandler(controller.getOne));

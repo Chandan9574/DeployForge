@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { slugify, previewSlug, previewHost, previewUrl } = require("../src/utils/preview");
-const { validateDeployment } = require("../src/validators/deploymentValidator");
+const { validateDeployment, validatePreflight } = require("../src/validators/deploymentValidator");
 const { renderConfig } = require("../src/services/nginxService");
 const { imageTagFor } = require("../src/services/buildService");
 
@@ -55,6 +55,20 @@ test("traversal paths and unsafe branches are rejected", () => {
       repositoryUrl: "https://github.com/team/app"
     }, options),
     /Invalid branch name/
+  );
+});
+
+test("Agent37 preflight accepts safe deployment inputs", () => {
+  const input = validatePreflight({
+    repositoryUrl: "https://github.com/team/app",
+    branchName: "feature/header",
+    dockerfilePath: "Dockerfile",
+    healthcheckPath: "/health"
+  });
+  assert.equal(input.healthcheckPath, "/health");
+  assert.throws(
+    () => validatePreflight({ repositoryUrl: "https://github.com/team/app", branchName: "feature/header", healthcheckPath: "health" }),
+    /Invalid health check path/
   );
 });
 

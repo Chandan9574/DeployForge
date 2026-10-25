@@ -1,4 +1,5 @@
 const fs = require("fs/promises");
+const os = require("os");
 const path = require("path");
 const dns = require("dns").promises;
 const net = require("net");
@@ -81,6 +82,11 @@ async function runGit(args, options = {}) {
     maxBuffer: 4 * 1024 * 1024,
     env: {
       ...process.env,
+      // DeployForge accepts public HTTPS repository URLs. Ignore machine-level
+      // URL rewrites (for example, HTTPS-to-SSH) so validation and cloning use
+      // the exact repository address the user supplied.
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
       GIT_TERMINAL_PROMPT: "0",
       GIT_ASKPASS: "true"
     },
@@ -153,4 +159,29 @@ async function listRemoteBranches(repositoryUrl) {
   }
 }
 
-module.exports = { assertRepositoryUrl, cloneBranch, removeWorkspace, workspacePath, runGit, listRemoteBranches };
+async function inspectBranchDockerfile({ repositoryUrl, branchName, dockerfilePath }) {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "deployforge-preflight-"));
+  try {
+    await runGit([
+      "clone",
+      "--depth", "1",
+      "--single-branch",
+      "--branch", branchName,
+      "--no-tags",
+      repositoryUrl,
+      workspace
+    ]);
+    const dockerfile = path.resolve(workspace, dockerfilePath);
+    if (!dockerfile.startsWith(`${workspace}${path.sep}`)) {
+      return false;
+    }
+    const stat = await fs.stat(dockerfile);
+    return stat.isFile();
+  } catch {
+    return false;
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+}
+
+module.exports = { assertRepositoryUrl, cloneBranch, removeWorkspace, workspacePath, runGit, listRemoteBranches, inspectBranchDockerfile };

@@ -5,6 +5,7 @@ const morgan = require("morgan");
 const env = require("./config/env");
 const asyncHandler = require("./middleware/asyncHandler");
 const deploymentRoutes = require("./routes/deploymentRoutes");
+const agent37Routes = require("./routes/agent37Routes");
 const deploymentController = require("./controllers/deploymentController");
 const healthRoutes = require("./routes/healthRoutes");
 const notFound = require("./middleware/notFound");
@@ -30,6 +31,7 @@ app.use("/api/health", healthRoutes);
 // it before they can create their first deployment.
 app.get("/api/config", asyncHandler(deploymentController.config));
 app.use("/api/deployments", deploymentRoutes);
+app.use("/api/agent37", agent37Routes);
 app.use(notFound);
 app.use(errorHandler);
 

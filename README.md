@@ -95,6 +95,10 @@ curl -X POST http://localhost:4000/api/deployments \
 
 The default `.env` uses mock Docker mode so the API can be demonstrated without creating containers. Set `USE_MOCK_DOCKER=false` to use the local Docker socket.
 
+## Agent37 deployment intelligence
+
+Agent37 preflight reports are optional and remain unavailable until an API key is configured. During `npm run bootstrap`, enter the key when prompted, or use the **Agent37** menu in the dashboard after startup. The dashboard verifies the key with Agent37 before saving it only to `backend/.env`; it never returns the key to the browser. The default Agent37 API URL is `https://api.agent37.com/v1` and can be changed in the menu when using a compatible endpoint.
+
 ## Database
 
 Local MongoDB in Docker is the default for the hackathon. MongoDB Atlas remains optional: change only `MONGODB_URI` after adding the server IP to the Atlas network rules. Do not use `0.0.0.0/0` for a real deployment.

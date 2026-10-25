@@ -6,7 +6,7 @@ import {
   ExternalLink, Trash2, Box, MousePointer, Terminal, 
   GitBranch, Server, Cpu, HardDrive, Clock, Hash, 
   Play, Square, Activity, CheckCircle, RefreshCw, SquareTerminal,
-  ChevronDown, X, Check, Copy, RotateCw, LoaderCircle
+  ChevronDown, X, Check, Copy, RotateCw, LoaderCircle, Bot, HeartPulse, FileCode2, CircleCheck, CircleX, Settings, KeyRound
 } from 'lucide-react';
 import './styles.css';
 
@@ -372,6 +372,16 @@ function TelemetryCard({ deployment, stats, onRedeploy, onStop, onDelete, busy }
           <div style={{fontFamily: 'monospace', fontSize: '0.75rem', color: '#666', overflow:'hidden', textOverflow:'ellipsis'}}>{deployment.containerName || deployment.containerId || 'No container assigned'}</div>
         </div>
       </div>
+
+      {deployment.status === 'running' && deployment.repositoryUrl && (
+        <Agent37Preflight
+          repoUrl={deployment.repositoryUrl}
+          branch={deployment.branchName}
+          dockerfilePath={deployment.dockerfilePath || 'Dockerfile'}
+          healthcheckPath={deployment.healthcheckPath || '/'}
+          cardView
+        />
+      )}
       
       <div className="wc-actions">
         <button onClick={() => setLogsOpen(o => !o)} className={`action-btn ${logsOpen ? 'active' : ''}`}>
@@ -405,15 +415,27 @@ function BranchDropdown({ repoUrl, value, onChange, disabled, required }) {
   const dropdownRef = useRef(null);
 
   useEffect(() => {
-    if (!repoUrl) return;
+    if (!repoUrl) {
+      setBranches([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
     setLoading(true);
     setError("");
     setBranches([]);
 
-    fetch(`${api}/deployments/branches?repo=${encodeURIComponent(repoUrl)}`)
-      .then(r => r.json())
+    fetch(`${api}/deployments/branches?repo=${encodeURIComponent(repoUrl)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Failed to fetch branches");
+        return data;
+      })
       .then(data => {
-        if (data.branches && data.branches.length > 0) {
+        if (controller.signal.aborted) return;
+        if (Array.isArray(data.branches) && data.branches.length > 0) {
           setBranches(data.branches);
           // Auto-select 'main' or first branch
           const defaultBranch = data.branches.includes('main') ? 'main' : data.branches[0];
@@ -422,8 +444,15 @@ function BranchDropdown({ repoUrl, value, onChange, disabled, required }) {
           setError(data.message || "No branches found");
         }
       })
-      .catch(() => setError("Failed to fetch branches"))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err.message || "Failed to fetch branches");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [repoUrl]);
 
   // Close on outside click
@@ -499,6 +528,80 @@ function BranchDropdown({ repoUrl, value, onChange, disabled, required }) {
   );
 }
 
+function Agent37Preflight({ repoUrl, branch, dockerfilePath = 'Dockerfile', healthcheckPath = '/', onStatusChange, cardView = false }) {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    onStatusChange?.(false);
+    setReport(null);
+    setError("");
+    if (!repoUrl.trim() || !branch.trim()) {
+      setLoading(false);
+      return () => controller.abort();
+    }
+
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${api}/deployments/preflight`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repositoryUrl: repoUrl.trim(), branchName: branch.trim(), dockerfilePath, healthcheckPath }),
+          signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || 'Preflight check failed');
+        if (controller.signal.aborted) return;
+        setReport(data);
+        onStatusChange?.(Boolean(data.ready));
+      } catch (requestError) {
+        if (controller.signal.aborted) return;
+        setError(requestError.message || 'Unable to run Agent37 preflight checks.');
+        onStatusChange?.(false);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 400);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [repoUrl, branch, dockerfilePath, healthcheckPath, onStatusChange]);
+
+  const checks = report ? [
+    { key: 'repository', label: 'Repository URL', icon: GitBranch },
+    { key: 'branch', label: 'Branch target', icon: GitBranch },
+    { key: 'health', label: 'Health check', icon: HeartPulse },
+    { key: 'dockerfile', label: 'Dockerfile', icon: FileCode2 }
+  ] : [];
+
+  return (
+    <aside className={`agent37-preflight ${cardView ? 'agent37-preflight-card' : ''}`} aria-live="polite" aria-label="Agent37 deployment preflight report">
+      <div className="agent37-preflight-heading">
+        <span className="agent37-bot"><Bot size={18} /></span>
+        <div><p>AGENT37 DEPLOYMENT INTELLIGENCE</p><h3>Preflight report</h3></div>
+        {loading && <LoaderCircle className="agent37-spinner" size={17} />}
+      </div>
+      {error ? <p className="agent37-preflight-error">{error}</p> : !report ? (
+        <p className="agent37-preflight-pending">{loading ? 'Checking deployment requirements…' : 'Select a branch to run deployment checks.'}</p>
+      ) : <>
+        <div className="agent37-check-grid">
+          {checks.map(({ key, label, icon: Icon }) => {
+            const check = report.checks[key];
+            const passed = check.status === 'passed';
+            return <div key={key} className={`agent37-check ${passed ? 'passed' : 'failed'}`}>
+              <span className="agent37-check-icon">{passed ? <CircleCheck size={16} /> : <CircleX size={16} />}</span>
+              <div><strong><Icon size={13} /> {label}</strong><span>{check.message}</span></div>
+            </div>;
+          })}
+        </div>
+        <p className={`agent37-preflight-summary ${report.ready ? 'ready' : ''}`}>
+          {report.ready ? 'All checks passed. Ready to deploy.' : 'Resolve the highlighted checks before deploying.'}
+        </p>
+      </>}
+    </aside>
+  );
+}
+
 // --- HOME PAGE ---
 function Home() {
   const mouse = useMousePosition();
@@ -512,6 +615,7 @@ function Home() {
   const [projectName, setProjectName] = useState("");
   const [branch, setBranch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [preflightReady, setPreflightReady] = useState(false);
 
   async function loadDeployments() {
     try {
@@ -543,6 +647,7 @@ function Home() {
       }
       setProjectName(autoName);
       setBranch(""); // Will be auto-set by BranchDropdown
+      setPreflightReady(false);
       setStep(2);
     }
   };
@@ -581,6 +686,7 @@ function Home() {
       setRepoUrl("");
       setProjectName("");
       setBranch("");
+      setPreflightReady(false);
       
       toast.success("Preview generated successfully!", { id: loadingToast });
       loadDeployments();
@@ -670,7 +776,7 @@ function Home() {
                   className="form-input-transparent"
                   placeholder="Paste GitHub Repository URL... (then press Enter)"
                   value={repoUrl}
-                  onChange={(e) => { setRepoUrl(e.target.value); if (step === 2) { setStep(1); setBranch(''); } }}
+                  onChange={(e) => { setRepoUrl(e.target.value); if (step === 2) { setStep(1); setBranch(''); setPreflightReady(false); } }}
                   disabled={loading}
                   required
                 />
@@ -703,9 +809,10 @@ function Home() {
                     />
                   </div>
                 </div>
+                <Agent37Preflight repoUrl={repoUrl} branch={branch} onStatusChange={setPreflightReady} />
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <span style={{fontSize: '0.75rem', color: '#666'}}>Containers are fully isolated and resource-limited.</span>
-                  <button type="submit" className="btn-primary" disabled={loading || !branch}>
+                  <span style={{fontSize: '0.75rem', color: '#666'}}>Agent37 validates the branch before launch.</span>
+                  <button type="submit" className="btn-primary" disabled={loading || !branch || !preflightReady}>
                     <Play size={16} style={{display:'inline', marginBottom:'-3px', marginRight:'6px'}}/>
                     {loading ? "Deploying..." : "Launch Preview"}
                   </button>
@@ -876,8 +983,74 @@ function About() {
   );
 }
 
+function Agent37Configuration({ onClose }) {
+  const [status, setStatus] = useState(null);
+  const [apiKey, setApiKey] = useState('');
+  const [apiBaseUrl, setApiBaseUrl] = useState('https://api.agent37.com/v1');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${api}/agent37/configuration`)
+      .then(response => response.json().then(data => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!response.ok) throw new Error(data.message || 'Unable to load Agent37 settings');
+        if (!active) return;
+        setStatus(data);
+        setApiBaseUrl(data.apiBaseUrl || 'https://api.agent37.com/v1');
+      })
+      .catch(loadError => active && setError(loadError.message));
+    return () => { active = false; };
+  }, []);
+
+  async function save(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`${api}/agent37/configuration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, apiBaseUrl })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Agent37 configuration failed');
+      setApiKey('');
+      setStatus(data);
+      toast.success('Agent37 is configured. Preflight reports are ready.');
+    } catch (saveError) {
+      setError(saveError.message || 'Agent37 configuration failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="agent37-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="agent37-modal" role="dialog" aria-modal="true" aria-labelledby="agent37-settings-title" onMouseDown={event => event.stopPropagation()}>
+        <button className="agent37-modal-close" onClick={onClose} aria-label="Close Agent37 settings"><X size={18} /></button>
+        <span className="agent37-bot"><Bot size={18} /></span>
+        <p className="agent37-modal-kicker">AGENT37 DEPLOYMENT INTELLIGENCE</p>
+        <h2 id="agent37-settings-title">Configure Agent37</h2>
+        <p className="agent37-modal-copy">Your API key is verified by Agent37, saved only in the backend’s private environment file, and is never returned to this dashboard.</p>
+        {status && <p className={`agent37-configuration-status ${status.configured ? 'configured' : ''}`}>{status.configured ? 'Agent37 is configured.' : 'Agent37 is not configured yet.'}</p>}
+        <form onSubmit={save}>
+          <label className="agent37-modal-label" htmlFor="agent37-key">API key</label>
+          <div className="agent37-key-input"><KeyRound size={16} /><input id="agent37-key" type="password" autoComplete="off" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder="Paste your Agent37 API key" required /></div>
+          <label className="agent37-modal-label" htmlFor="agent37-url">Agent37 API URL</label>
+          <input id="agent37-url" className="agent37-modal-input" type="url" value={apiBaseUrl} onChange={event => setApiBaseUrl(event.target.value)} required />
+          {error && <p className="agent37-modal-error">{error}</p>}
+          <button className="agent37-save" type="submit" disabled={saving || !apiKey.trim()}>{saving ? 'Verifying…' : 'Verify and save key'}</button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 // --- APP ROUTER ---
 function App() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <BrowserRouter>
       <Toaster position="bottom-right" toastOptions={{ style: { fontFamily: 'var(--font-sans)', borderRadius: '8px', background: '#222', color: '#fff' } }}/>
@@ -890,8 +1063,11 @@ function App() {
         <nav className="nav-links">
           <Link to="/features">Features</Link>
           <Link to="/about">About</Link>
+          <button className="agent37-settings-button" onClick={() => setSettingsOpen(true)}><Settings size={15} /> Agent37</button>
         </nav>
       </header>
+
+      {settingsOpen && <Agent37Configuration onClose={() => setSettingsOpen(false)} />}
 
       <Routes>
         <Route path="/" element={<Home />} />

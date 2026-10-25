@@ -5,6 +5,7 @@ const branchPattern = /^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,99}$/;
 const imagePattern = /^[a-z0-9./:_-]{1,128}$/i;
 const commitPattern = /^[a-f0-9]{7,40}$/i;
 const relativePathPattern = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[a-zA-Z0-9._/-]{1,200}$/;
+const healthcheckPathPattern = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/?-]*$/;
 
 const deploymentSchema = z.object({
   projectName: z.string().trim().min(1).max(60).regex(/^[a-zA-Z0-9._-]+$/).default("demo-app"),
@@ -17,7 +18,7 @@ const deploymentSchema = z.object({
   deploymentMode: z.enum(["dockerfile", "image"]).default("dockerfile"),
   dockerfilePath: z.string().trim().regex(relativePathPattern, "Invalid Dockerfile path").default("Dockerfile"),
   buildContext: z.string().trim().regex(relativePathPattern, "Invalid build context").default("."),
-  healthcheckPath: z.string().trim().max(200).regex(/^\/[A-Za-z0-9._~!$&'()*+,;=:@%/?-]*$/, "Invalid health check path").default("/"),
+  healthcheckPath: z.string().trim().max(200).regex(healthcheckPathPattern, "Invalid health check path").default("/"),
   image: z.string().trim().regex(imagePattern, "Invalid Docker image name").optional().default("nginx:alpine"),
   containerPort: z.coerce.number().int().min(1).max(65535).optional()
 }).strict();
@@ -65,4 +66,19 @@ function validateRedeploy(input) {
   return result.data;
 }
 
-module.exports = { validateDeployment, validateRedeploy };
+const preflightSchema = z.object({
+  repositoryUrl: z.string().trim().url().refine((value) => /^https?:\/\//i.test(value), "Only HTTP(S) repository URLs are allowed"),
+  branchName: z.string().trim().regex(branchPattern, "Invalid branch name"),
+  dockerfilePath: z.string().trim().regex(relativePathPattern, "Invalid Dockerfile path").default("Dockerfile"),
+  healthcheckPath: z.string().trim().max(200).regex(healthcheckPathPattern, "Invalid health check path").default("/")
+}).strict();
+
+function validatePreflight(input) {
+  const result = preflightSchema.safeParse(input || {});
+  if (!result.success) {
+    throw new AppError(result.error.issues[0].message, 400, "INVALID_PREFLIGHT");
+  }
+  return result.data;
+}
+
+module.exports = { validateDeployment, validateRedeploy, validatePreflight };

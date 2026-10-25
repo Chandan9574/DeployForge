@@ -155,6 +155,23 @@ else
   ok "backend/.env already exists; leaving it unchanged"
 fi
 
+if [[ -t 0 ]]; then
+  printf '\nAgent37 deployment intelligence is optional.\n'
+  printf 'Agent37 API key (press Enter to skip): '
+  read -r -s agent37_api_key
+  printf '\n'
+  if [[ -n "$agent37_api_key" ]]; then
+    if [[ "$agent37_api_key" == *$'\n'* || "$agent37_api_key" == *$'\r'* ]]; then
+      die "Agent37 API keys cannot contain line breaks"
+    fi
+    printf '\nAGENT37_ENABLED=true\nAGENT37_API_KEY=%s\n' "$agent37_api_key" >> backend/.env
+    chmod 600 backend/.env
+    ok "Agent37 API key saved to backend/.env"
+  else
+    warn "Agent37 setup skipped. Configure it later from the dashboard."
+  fi
+fi
+
 mkdir -p backend/deployments /tmp/deployforge-builds
 chmod 700 backend/deployments /tmp/deployforge-builds
 ok "Prepared private deployment and build workspaces"
