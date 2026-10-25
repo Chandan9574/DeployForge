@@ -19,6 +19,10 @@ backend/src/
 ├── utils/           shared helpers
 └── validators/      input validation and allowlists
 
+cli/
+├── bin/             deployforge executable
+└── src/             commands, API client, Git helpers
+
 frontend/
 └── src/             React dashboard
 ```
@@ -77,6 +81,54 @@ npm run frontend:dev
 
 Open <http://localhost:5173>.
 
+## CLI
+
+Install the CLI and put `deployforge` on your PATH:
+
+```bash
+npm run cli:install
+```
+
+The installer uses `~/.local/bin` by default. Use `--global` to link through npm instead:
+
+```bash
+bash scripts/install-cli.sh --global
+```
+
+Initialize a project from the root of a Git repository:
+
+```bash
+deployforge init
+```
+
+This detects the `origin` remote, writes `.deployforge/config.json`, and ignores `.deployforge/` in Git. Deploy the current branch or any specific branch:
+
+```bash
+deployforge deploy
+deployforge deploy feature/header
+deployforge deploy --all
+```
+
+Every deployed branch gets its own uniquely named Docker container, host port, and preview URL. `deploy --all` deploys every branch found on `origin`; `watch` keeps that state in sync and automatically deploys new branches:
+
+```bash
+deployforge watch --pattern "feature/*"
+```
+
+Inspect and manage previews:
+
+```bash
+deployforge list --stats
+deployforge status feature/header
+deployforge restart feature/header
+deployforge stop feature/header
+deployforge logs feature/header --follow
+deployforge open feature/header --browser
+deployforge destroy feature/header
+```
+
+Useful options are available on every command with `deployforge <command> --help`. Configuration precedence is CLI flag, environment variable, then `.deployforge/config.json`. `DEPLOYFORGE_API_URL`, `DEPLOYFORGE_PROJECT`, `DEPLOYFORGE_TOKEN`, `DEPLOYFORGE_REPO_URL`, and `DEPLOYFORGE_POLL_MS` are supported. The watcher stores branch state in `.deployforge/state.json`.
+
 ## Docker Compose
 
 ```bash
@@ -95,6 +147,8 @@ curl -X POST http://localhost:4000/api/deployments \
 
 The default `.env` uses mock Docker mode so the API can be demonstrated without creating containers. Set `USE_MOCK_DOCKER=false` to use the local Docker socket.
 
+The CLI uses the same endpoints: `GET/POST /api/deployments`, `GET /api/deployments/branches`, `GET /api/deployments/:id`, `GET /api/deployments/:id/logs`, `GET /api/deployments/:id/stats`, `POST /api/deployments/:id/restart`, `POST /api/deployments/:id/stop`, and `DELETE /api/deployments/:id`.
+
 ## Agent37 deployment intelligence
 
 Agent37 preflight reports are optional and remain unavailable until an API key is configured. During `npm run bootstrap`, enter the key when prompted, or use the **Agent37** menu in the dashboard after startup. The dashboard verifies the key with Agent37 before saving it only to `backend/.env`; it never returns the key to the browser. The default Agent37 API URL is `https://api.agent37.com/v1` and can be changed in the menu when using a compatible endpoint.
@@ -107,5 +161,8 @@ Local MongoDB in Docker is the default for the hackathon. MongoDB Atlas remains 
 
 ```bash
 npm run backend:check
+npm run backend:test
+npm run cli:check
+npm run cli:test
 npm run frontend:build
 ```

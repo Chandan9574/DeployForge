@@ -134,7 +134,7 @@ fi
 (( missing == 0 )) || die "Install the missing requirements above and re-run this script."
 
 if (( INSTALL_DEPS )); then
-  for app in backend frontend; do
+  for app in backend frontend cli; do
     log "Installing $app dependencies"
     if [[ -f "$app/package-lock.json" ]]; then
       npm --prefix "$app" ci
@@ -225,4 +225,5 @@ printf '\n%sBootstrap complete.%s\n' "$C_GREEN" "$C_RESET"
 printf 'Next steps:\n'
 printf '  1. Start the backend:  npm run backend:dev\n'
 printf '  2. Start the frontend: npm run frontend:dev\n'
-printf '  3. Open the dashboard: http://localhost:5173\n'
+printf '  3. Install the CLI:    npm run cli:install\n'
+printf '  4. Open the dashboard: http://localhost:5173\n'
