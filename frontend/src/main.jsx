@@ -219,14 +219,99 @@ function InlineLogs({ deploymentId, status, onClose }) {
   );
 }
 
+// --- TELEMETRY SPARKLINE / AREA GRAPH ---
+function MetricGraph({ values = [], color = "#a855f7", gradientId }) {
+  if (!values || values.length === 0) {
+    return <div className="metric-graph-empty">Collecting metrics...</div>;
+  }
+
+  // Ensure multiple points for clean area rendering
+  const data = values.length === 1 ? [values[0], values[0]] : values;
+  const max = Math.max(...data, 1);
+  const min = 0;
+  const range = max - min || 1;
+
+  const points = data.map((val, idx) => {
+    const x = (idx / Math.max(data.length - 1, 1)) * 100;
+    const y = 38 - ((val - min) / range) * 32;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const polylineStr = points.join(" ");
+  const polygonStr = `0,42 ${polylineStr} 100,42`;
+
+  return (
+    <div className="metric-graph-wrap">
+      <svg className="metric-graph-svg" viewBox="0 0 100 42" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <polygon points={polygonStr} fill={`url(#${gradientId})`} />
+        <polyline
+          points={polylineStr}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
 // --- HORIZONTAL TELEMETRY CARD ---
 function TelemetryCard({ deployment, stats, onRedeploy, onStop, onDelete, busy }) {
   const [logsOpen, setLogsOpen] = useState(false);
-  const cpu = Number(stats?.cpuPercent || 0);
-  const memoryUsage = Number(stats?.memoryUsage || 0);
-  const memoryLimit = Number(stats?.memoryLimit || 0);
+  const initialCpu = Number(stats?.cpuPercent || 0);
+  const initialMem = Number(stats?.memoryUsage || 0) / 1024 / 1024;
+  const [currentStats, setCurrentStats] = useState(stats || { cpuPercent: 0, memoryUsage: 0, memoryLimit: 0 });
+  const [cpuHistory, setCpuHistory] = useState([initialCpu]);
+  const [memoryHistory, setMemoryHistory] = useState([initialMem]);
+
+  const cpu = Number(currentStats?.cpuPercent || 0);
+  const memoryUsage = Number(currentStats?.memoryUsage || 0);
+  const memoryLimit = Number(currentStats?.memoryLimit || 0);
   const previewUrl = deployment.previewUrl || deployment.url || "";
   const latestLog = deployment.logs?.slice(-1)[0];
+
+  useEffect(() => {
+    if (stats) {
+      setCurrentStats(stats);
+      setCpuHistory(prev => [...prev.slice(-24), Number(stats.cpuPercent || 0)]);
+      setMemoryHistory(prev => [...prev.slice(-24), Number(stats.memoryUsage || 0) / 1024 / 1024]);
+    }
+  }, [stats]);
+
+  useEffect(() => {
+    if (deployment.status !== "running") return undefined;
+    let active = true;
+
+    async function refreshStats() {
+      if (document.hidden) return;
+      try {
+        const response = await fetch(`${api}/deployments/${deployment._id}/stats`);
+        if (!response.ok) return;
+        const val = await response.json();
+        if (!active) return;
+        setCurrentStats(val);
+        setCpuHistory(prev => [...prev.slice(-24), Number(val.cpuPercent || 0)]);
+        setMemoryHistory(prev => [...prev.slice(-24), Number(val.memoryUsage || 0) / 1024 / 1024]);
+      } catch {
+        // Transient stats failure ignored
+      }
+    }
+
+    const timer = setInterval(refreshStats, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [deployment._id, deployment.status]);
 
   return (
     <div className="wide-card">
@@ -269,12 +354,18 @@ function TelemetryCard({ deployment, stats, onRedeploy, onStop, onDelete, busy }
 
       <div className="wc-metrics-row">
         <div className="metric-box">
-          <div className="metric-label"><span>CPU</span> <span>{cpu.toFixed(2)}%</span></div>
-          <div className="metric-bar"><div className="metric-fill" style={{width: `${Math.min(cpu, 100)}%`}}></div></div>
+          <div className="metric-label">
+            <span><Cpu size={12} style={{ display: 'inline', marginBottom: '-2px', marginRight: '4px' }} /> CPU</span>
+            <span>{cpu.toFixed(2)}%</span>
+          </div>
+          <MetricGraph values={cpuHistory} color="#a855f7" gradientId={`cpu-grad-${deployment._id}`} />
         </div>
         <div className="metric-box">
-          <div className="metric-label"><span>MEMORY</span> <span>{formatBytes(memoryUsage)} / {formatBytes(memoryLimit)}</span></div>
-          <div className="metric-bar"><div className="metric-fill" style={{width: `${memoryLimit ? Math.min((memoryUsage / memoryLimit) * 100, 100) : 0}%`, background: '#3b82f6'}}></div></div>
+          <div className="metric-label">
+            <span><Server size={12} style={{ display: 'inline', marginBottom: '-2px', marginRight: '4px' }} /> MEMORY</span>
+            <span>{formatBytes(memoryUsage)} {memoryLimit ? `/ ${formatBytes(memoryLimit)}` : ''}</span>
+          </div>
+          <MetricGraph values={memoryHistory} color="#3b82f6" gradientId={`mem-grad-${deployment._id}`} />
         </div>
         <div className="metric-box" style={{justifyContent: 'center'}}>
           <div className="metric-label" style={{textTransform: 'none', color: '#aaa', fontSize:'0.7rem'}}>_ CONTAINER</div>
